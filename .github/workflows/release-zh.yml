@@ -134,10 +134,14 @@ jobs:
             - name: Prepare release files
               run: |
                   mkdir -p release-files
-                  find make -type f \( \
-                      -name '*.zip' -o -name '*.dmg' -o -name '*.exe' -o -name '*.msi' \
-                      -o -name '*.rpm' -o -name '*.deb' -o -name '*.pacman' -o -name '*.AppImage' \
-                  \) -exec cp -t release-files {} +
+                  # Only copy installer artifacts at each runner's make/ root — not unpacked/
+                  # app bundles (those contain duplicate wsh-*.exe names across platforms).
+                  for runner_dir in make/*/; do
+                    find "$runner_dir" -maxdepth 1 -type f \( \
+                        -name '*.zip' -o -name '*.dmg' -o -name '*.exe' -o -name '*.msi' \
+                        -o -name '*.rpm' -o -name '*.deb' -o -name '*.pacman' -o -name '*.AppImage' \
+                    \) -exec cp -f -t release-files {} +
+                  done
                   echo "Release files:"
                   find release-files -type f | sort
                   count=$(find release-files -type f | wc -l)
