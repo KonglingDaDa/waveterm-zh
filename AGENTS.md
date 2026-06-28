@@ -244,9 +244,10 @@ git push --force-with-lease origin main:zh-cn
 
 ### 发布失败后重跑
 
-- 某次 workflow **失败后不会自动继续**；`create-release` 只在 4 个 build job 全部成功后才执行。
 - 修复 workflow 并 push 后，需在 Actions **重新手动 Run workflow**（不能用旧 run 续跑）。
-- 建议使用新 tag（如 `v0.14.5-zh.2`）；若复用已存在 tag，需先在 GitHub 删除旧 Release/tag 或接受覆盖行为。
+- `create-release` 会在**至少有一个平台构建成功**时执行，并上传已成功的产物（某平台失败不阻断其余平台发布）。
+- 产物从各 runner 子目录汇总到 `release-files/` 再上传（避免 `make/*.zip` 匹配不到嵌套路径）。
+- 建议使用新 tag（如 `v0.14.5-zh.2`）；若复用已存在 tag，需先在 GitHub 删除旧 Release/tag。
 
 ### 修改分支保护时请注意
 
