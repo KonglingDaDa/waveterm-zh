@@ -128,15 +128,15 @@ jobs:
             - name: Download all platform artifacts
               uses: actions/download-artifact@v4
               with:
-                  path: make
-                  merge-multiple: true
+                  path: artifacts
+                  merge-multiple: false
 
             - name: Prepare release files
               run: |
                   mkdir -p release-files
-                  # Only copy installer artifacts at each runner's make/ root — not unpacked/
-                  # app bundles (those contain duplicate wsh-*.exe names across platforms).
-                  for runner_dir in make/*/; do
+                  # Each matrix runner uploads as a separate artifact (macos-latest, etc.).
+                  # Copy only top-level installers from each runner — skip unpacked/ subtrees.
+                  for runner_dir in artifacts/*/; do
                     find "$runner_dir" -maxdepth 1 -type f \( \
                         -name '*.zip' -o -name '*.dmg' -o -name '*.exe' -o -name '*.msi' \
                         -o -name '*.rpm' -o -name '*.deb' -o -name '*.pacman' -o -name '*.AppImage' \
