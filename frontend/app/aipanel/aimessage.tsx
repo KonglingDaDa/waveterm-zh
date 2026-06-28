@@ -1,6 +1,8 @@
 // Copyright 2025, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+import { t, type Locale } from "@/app/i18n";
+import { useLocale, useT } from "@/app/i18n/react";
 import { WaveStreamdown } from "@/app/element/streamdown";
 import { cn } from "@/util/util";
 import { memo, useEffect, useRef } from "react";
@@ -176,10 +178,11 @@ const groupMessageParts = (parts: WaveUIMessagePart[]): MessagePart[] => {
     return grouped;
 };
 
-const getThinkingMessage = (
+export const getThinkingMessage = (
     parts: WaveUIMessagePart[],
     isStreaming: boolean,
-    role: string
+    role: string,
+    locale: Locale
 ): { message: string; reasoningText?: string; isWaitingApproval?: boolean } | null => {
     if (!isStreaming || role !== "assistant") {
         return null;
@@ -190,14 +193,14 @@ const getThinkingMessage = (
     );
 
     if (hasPendingApprovals) {
-        return { message: "Waiting for Tool Approvals...", isWaitingApproval: true };
+        return { message: t("Waiting for Tool Approvals...", undefined, locale), isWaitingApproval: true };
     }
 
     const lastPart = parts[parts.length - 1];
 
     if (lastPart?.type === "reasoning") {
         const reasoningContent = lastPart.text || "";
-        return { message: "AI is thinking...", reasoningText: reasoningContent };
+        return { message: t("AI is thinking...", undefined, locale), reasoningText: reasoningContent };
     }
 
     if (lastPart?.type === "text" && lastPart.text) {
@@ -208,13 +211,15 @@ const getThinkingMessage = (
 };
 
 export const AIMessage = memo(({ message, isStreaming }: AIMessageProps) => {
+    const tt = useT();
+    const locale = useLocale();
     const parts = message.parts || [];
     const displayParts = parts.filter(isDisplayPart);
     const fileParts = parts.filter(
         (part): part is WaveUIMessagePart & { type: "data-userfile" } => part.type === "data-userfile"
     );
 
-    const thinkingData = getThinkingMessage(parts, isStreaming, message.role);
+    const thinkingData = getThinkingMessage(parts, isStreaming, message.role, locale);
     const groupedParts = groupMessageParts(displayParts);
 
     return (
@@ -228,7 +233,7 @@ export const AIMessage = memo(({ message, isStreaming }: AIMessageProps) => {
                 )}
             >
                 {displayParts.length === 0 && !isStreaming && !thinkingData ? (
-                    <div className="whitespace-pre-wrap break-words">(no text content)</div>
+                    <div className="whitespace-pre-wrap break-words">{tt("(no text content)")}</div>
                 ) : (
                     <>
                         {groupedParts.map((group, index: number) =>

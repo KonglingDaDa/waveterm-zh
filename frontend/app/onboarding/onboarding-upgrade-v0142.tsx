@@ -1,17 +1,19 @@
 // Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+import { useT } from "@/app/i18n/react";
 import { useWaveEnv } from "@/app/waveenv/waveenv";
 
 const UpgradeOnboardingModal_v0_14_2_Content = () => {
+    const tt = useT();
     const waveEnv = useWaveEnv();
     return (
         <div className="flex flex-col items-start w-full mb-2 unselectable">
             <div className="text-secondary leading-relaxed mb-4">
                 <p className="mb-0">
-                    Wave v0.14.2 introduces a new block badge system for at-a-glance status, along with directory
-                    preview improvements and bug fixes. v0.14.3 is a patch release fixing a showstopper bug in
-                    onboarding.
+                    {tt(
+                        "Wave v0.14.2 introduces a new block badge system for at-a-glance status, along with directory preview improvements and bug fixes. v0.14.3 is a patch release fixing a showstopper bug in onboarding."
+                    )}
                 </p>
             </div>
 
@@ -20,34 +22,36 @@ const UpgradeOnboardingModal_v0_14_2_Content = () => {
                     <i className="text-[24px] text-accent fa-solid fa-bell"></i>
                 </div>
                 <div className="flex flex-col items-start gap-2 flex-1">
-                    <div className="text-foreground text-base font-semibold leading-[18px]">Block &amp; Tab Badges</div>
+                    <div className="text-foreground text-base font-semibold leading-[18px]">{tt("Block & Tab Badges")}</div>
                     <div className="text-secondary leading-5">
                         <ul className="list-disc list-outside space-y-1 pl-5">
                             <li>
-                                <strong>Block Badges Roll Up to Tabs</strong> - Blocks can display icon badges (with
-                                color and priority) that are visible in the tab bar for at-a-glance status
+                                <strong>{tt("Block Badges Roll Up to Tabs")}</strong> -{" "}
+                                {tt(
+                                    "Blocks can display icon badges (with color and priority) that are visible in the tab bar for at-a-glance status"
+                                )}
                             </li>
                             <li>
-                                <strong>Bell Indicator On by Default</strong> - Terminal bell badge now lights up the
-                                block and tab when your terminal rings (controlled by <code>term:bellindicator</code>)
+                                <strong>{tt("Bell Indicator On by Default")}</strong> -{" "}
+                                {tt("Terminal bell badge now lights up the block and tab when your terminal rings (controlled by")}{" "}
+                                <code>term:bellindicator</code>)
                             </li>
                             <li>
                                 <strong>
                                     <code>wsh badge</code>
                                 </strong>{" "}
-                                - New command to set or clear badges from the CLI. Supports icons, colors, priorities,
-                                and PID-linked badges
+                                - {tt("New command to set or clear badges from the CLI. Supports icons, colors, priorities, and PID-linked badges")}
                             </li>
                             <li>
-                                <strong>Claude Code Integration</strong> - Use <code>wsh badge</code> with Claude Code
-                                hooks to surface AI task status as tab bar notifications{" "}
+                                <strong>{tt("Claude Code Integration")}</strong> - {tt("Use")} <code>wsh badge</code>{" "}
+                                {tt("with Claude Code hooks to surface AI task status as tab bar notifications")}{" "}
                                 <button
                                     onClick={() =>
                                         waveEnv.electron.openExternal("https://docs.waveterm.dev/claude-code")
                                     }
                                     className="text-accent text-sm font-normal cursor-pointer hover:underline"
                                 >
-                                    [see docs]
+                                    {tt("[see docs]")}
                                 </button>
                             </li>
                         </ul>
@@ -60,21 +64,23 @@ const UpgradeOnboardingModal_v0_14_2_Content = () => {
                     <i className="text-[24px] text-accent fa-solid fa-folder-open"></i>
                 </div>
                 <div className="flex flex-col items-start gap-2 flex-1">
-                    <div className="text-foreground text-base font-semibold leading-[18px]">Other Changes</div>
+                    <div className="text-foreground text-base font-semibold leading-[18px]">{tt("Other Changes")}</div>
                     <div className="text-secondary leading-5">
                         <ul className="list-disc list-outside space-y-1 pl-5">
                             <li>
-                                <strong>[v0.14.3] </strong>[bugfix] Fixed a showstopper onboarding bug
+                                <strong>[v0.14.3] </strong>[bugfix] {tt("Fixed a showstopper onboarding bug")}
                             </li>
                             <li>
-                                <strong>Directory Preview</strong> - Improved mod time formatting, zebra-striped rows,
-                                better default sort, and YAML file support
+                                <strong>{tt("Directory Preview")}</strong> -{" "}
+                                {tt(
+                                    "Improved mod time formatting, zebra-striped rows, better default sort, and YAML file support"
+                                )}
                             </li>
                             <li>
-                                <strong>Search Bar</strong> - Clipboard and focus improvements
+                                <strong>{tt("Search Bar")}</strong> - {tt("Clipboard and focus improvements")}
                             </li>
-                            <li>[bugfix] Fixed "New Window" hanging on GNOME desktops</li>
-                            <li>[bugfix] Fixed "Save Session As..." focused window tracking bug</li>
+                            <li>[bugfix] {tt('Fixed "New Window" hanging on GNOME desktops')}</li>
+                            <li>[bugfix] {tt('Fixed "Save Session As..." focused window tracking bug')}</li>
                         </ul>
                     </div>
                 </div>
