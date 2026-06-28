@@ -635,7 +635,7 @@ const Widgets = memo(() => {
                 {env.isDev() ? (
                     <div
                         className="flex justify-center items-center w-full py-1 text-accent text-[30px]"
-                        title="Running Wave Dev Build"
+                        title={tt("Running Wave Dev Build")}
                     >
                         <i className="fa fa-brands fa-dev fa-fw" />
                     </div>
@@ -669,20 +669,20 @@ const Widgets = memo(() => {
                     <div>
                         <i className={makeIconClass("gear", true)}></i>
                     </div>
-                    <div className="text-xxs mt-0.5 w-full px-0.5 text-center">settings</div>
+                    <div className="text-xxs mt-0.5 w-full px-0.5 text-center">{tt("settings")}</div>
                 </div>
                 {env.isDev() ? (
                     <div className="flex flex-col justify-center items-center w-full py-1.5 pr-0.5 text-lg">
                         <div>
                             <i className={makeIconClass("cube", true)}></i>
                         </div>
-                        <div className="text-xxs mt-0.5 w-full px-0.5 text-center">apps</div>
+                        <div className="text-xxs mt-0.5 w-full px-0.5 text-center">{tt("apps")}</div>
                     </div>
                 ) : null}
                 {env.isDev() ? (
                     <div
                         className="flex justify-center items-center w-full py-1 text-accent text-[30px]"
-                        title="Running Wave Dev Build"
+                        title={tt("Running Wave Dev Build")}
                     >
                         <i className="fa fa-brands fa-dev fa-fw" />
                     </div>

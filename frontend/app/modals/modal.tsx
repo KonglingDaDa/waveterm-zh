@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Button } from "@/app/element/button";
+import { useT } from "@/app/i18n/react";
 import { cn } from "@/util/util";
 import clsx from "clsx";
 import { forwardRef } from "react";
@@ -38,6 +39,7 @@ const Modal = forwardRef<HTMLDivElement, ModalProps>(
         }: ModalProps,
         ref
     ) => {
+        const tt = useT();
         const renderBackdrop = (onClick) => <div className="modal-backdrop" onClick={onClick}></div>;
 
         const renderFooter = () => {
@@ -48,7 +50,7 @@ const Modal = forwardRef<HTMLDivElement, ModalProps>(
             <div className="modal-wrapper">
                 {renderBackdrop(onClickBackdrop)}
                 <div ref={ref} className={clsx(`modal`, className)}>
-                    <Button className="grey ghost modal-close-btn" onClick={onClose} title="Close (ESC)">
+                    <Button className="grey ghost modal-close-btn" onClick={onClose} title={tt("Close (ESC)")}>
                         <i className="fa-sharp fa-solid fa-xmark"></i>
                     </Button>
                     <div className="content-wrapper">
@@ -92,21 +94,24 @@ interface ModalFooterProps {
 const ModalFooter = ({
     onCancel,
     onOk,
-    cancelLabel = "Cancel",
-    okLabel = "Ok",
+    cancelLabel,
+    okLabel,
     okDisabled,
     cancelDisabled,
 }: ModalFooterProps) => {
+    const tt = useT();
+    const resolvedCancelLabel = cancelLabel ?? tt("Cancel");
+    const resolvedOkLabel = okLabel ?? tt("Ok");
     return (
         <footer className="modal-footer">
             {onCancel && (
                 <Button className="grey ghost" onClick={onCancel} disabled={cancelDisabled}>
-                    {cancelLabel}
+                    {resolvedCancelLabel}
                 </Button>
             )}
             {onOk && (
                 <Button onClick={onOk} disabled={okDisabled}>
-                    {okLabel}
+                    {resolvedOkLabel}
                 </Button>
             )}
         </footer>

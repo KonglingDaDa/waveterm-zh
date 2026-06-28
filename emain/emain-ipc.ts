@@ -8,7 +8,7 @@ import * as child_process from "node:child_process";
 import * as path from "path";
 import { PNG } from "pngjs";
 import { Readable } from "stream";
-import { makeSaveScrollbackDialog } from "../frontend/app/i18n/electron-ui";
+import { makeSaveImageDialog, makeSaveScrollbackDialog } from "../frontend/app/i18n/electron-ui";
 import { getMainProcessLocale } from "../frontend/app/i18n/main";
 import { RpcApi } from "../frontend/app/store/wshclientapi";
 import { getWebServerEndpoint } from "../frontend/util/endpoints";
@@ -164,12 +164,9 @@ function saveImageFileWithNativeDialog(
         return fileName;
     }
     defaultFileName = addExtensionIfNeeded(defaultFileName, mimeType);
+    const locale = getMainProcessLocale();
     electron.dialog
-        .showSaveDialog(ww, {
-            title: "Save Image",
-            defaultPath: defaultFileName,
-            filters: [{ name: "Images", extensions: ["png", "jpg", "jpeg", "gif", "webp", "bmp", "tiff", "heic"] }],
-        })
+        .showSaveDialog(ww, makeSaveImageDialog(locale, defaultFileName))
         .then((file) => {
             if (file.canceled) {
                 readStream.destroy();

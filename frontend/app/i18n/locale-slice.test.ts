@@ -31,9 +31,16 @@ import {
     makeCloseTabDialog,
     makeDeleteWorkspaceDialog,
     makeQuitConfirmDialog,
+    makeSaveImageDialog,
     makeSaveScrollbackDialog,
     menuLabel,
 } from "./electron-ui";
+import {
+    connectPlaceholder,
+    connectionSectionLocal,
+    disconnectLabel,
+    reconnectLabel,
+} from "./connection-ui";
 import { getLocaleFromFullConfig, getMainProcessLocale, setMainProcessLocale } from "./main";
 import { t } from "./index";
 
@@ -191,6 +198,30 @@ describe("locale slice", () => {
         const dialog = makeSaveScrollbackDialog("en-US", "my-session.log");
         expect(dialog.title).toBe("Save Scrollback");
         expect(dialog.defaultPath).toBe("my-session.log");
+    });
+
+    it("save image native dialog options differ by locale", () => {
+        const enDialog = makeSaveImageDialog("en-US", "photo.png");
+        const zhDialog = makeSaveImageDialog("zh-CN", "photo.png");
+        expect(enDialog.title).toBe("Save Image");
+        expect(zhDialog.title).toBe("保存图片");
+        expect(enDialog.filters?.[0].name).toBe("Images");
+        expect(zhDialog.filters?.[0].name).toBe("图片文件");
+        expect(enDialog.defaultPath).toBe("photo.png");
+        expect(zhDialog.defaultPath).toBe("photo.png");
+    });
+
+    it("about modal key strings resolve in zh-CN", () => {
+        expect(t("Open-Source AI-Integrated Terminal", undefined, "zh-CN")).toBe("开源 AI 集成终端");
+        expect(t("Client Version {version}", { version: "0.14.5 (dev)" }, "zh-CN")).toBe("客户端版本 0.14.5 (dev)");
+        expect(t("Update Channel: {channel}", { channel: "latest" }, "zh-CN")).toBe("更新通道：latest");
+    });
+
+    it("connection typeahead helpers resolve in zh-CN", () => {
+        expect(connectionSectionLocal("zh-CN")).toBe("本地");
+        expect(reconnectLabel("myhost", "zh-CN")).toBe("重新连接到 myhost");
+        expect(disconnectLabel("myhost", "zh-CN")).toBe("断开 myhost");
+        expect(connectPlaceholder("zh-CN")).toBe("连接到（username@host）...");
     });
 
     it("builder built-in mode display names translate with user custom fallback", () => {

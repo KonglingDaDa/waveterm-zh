@@ -99,3 +99,17 @@ export function makeSaveScrollbackDialog(locale: Locale, defaultPath: string): S
         filters: [{ name: t("Text Files", undefined, locale), extensions: ["txt", "log"] }],
     };
 }
+
+export function makeSaveImageDialog(locale: Locale, defaultPath: string): SaveDialogOptions {
+    return {
+        title: t("Save Image", undefined, locale),
+        defaultPath,
+        buttonLabel: t("Save", undefined, locale),
+        filters: [
+            {
+                name: t("Images", undefined, locale),
+                extensions: ["png", "jpg", "jpeg", "gif", "webp", "bmp", "tiff", "heic"],
+            },
+        ],
+    };
+}
