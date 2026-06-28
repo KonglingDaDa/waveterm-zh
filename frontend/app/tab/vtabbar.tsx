@@ -12,6 +12,7 @@ import { validateCssColor } from "@/util/color-validator";
 import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { memo, useCallback, useEffect, useRef, useState } from "react";
+import { getCurrentLocale } from "@/app/i18n/localeutil";
 import { buildTabBarContextMenu, buildTabContextMenu } from "./tabcontextmenu";
 import { UpdateStatusBanner } from "./updatebanner";
 import { VTab, VTabItem } from "./vtab";
@@ -156,7 +157,7 @@ function VTabWrapper({
         (e: React.MouseEvent<HTMLDivElement>) => {
             e.preventDefault();
             e.stopPropagation();
-            const menu = buildTabContextMenu(tabId, renameRef, () => onClose(), env);
+            const menu = buildTabContextMenu(tabId, renameRef, () => onClose(), env, getCurrentLocale());
             env.showContextMenu(menu, e);
         },
         [tabId, onClose, env]
@@ -318,7 +319,7 @@ export function VTabBar({ workspace, className }: VTabBarProps) {
     const handleTabBarContextMenu = useCallback(
         (e: React.MouseEvent<HTMLDivElement>) => {
             e.preventDefault();
-            const menu = buildTabBarContextMenu(env);
+            const menu = buildTabBarContextMenu(env, getCurrentLocale());
             env.showContextMenu(menu, e);
         },
         [env]

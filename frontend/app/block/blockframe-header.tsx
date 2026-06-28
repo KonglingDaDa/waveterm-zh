@@ -1,6 +1,7 @@
 // Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+import { atoms } from "@/app/store/global-atoms";
 import {
     blockViewToIcon,
     blockViewToName,
@@ -220,7 +221,8 @@ const BlockFrame_Header = ({
     const metaFrameTitle = jotai.useAtomValue(waveEnv.getBlockMetaKeyAtom(nodeModel.blockId, "frame:title"));
     const metaFrameIcon = jotai.useAtomValue(waveEnv.getBlockMetaKeyAtom(nodeModel.blockId, "frame:icon"));
     const metaConnection = jotai.useAtomValue(waveEnv.getBlockMetaKeyAtom(nodeModel.blockId, "connection"));
-    let viewName = util.useAtomValueSafe(viewModel?.viewName) ?? blockViewToName(metaView);
+    const locale = jotai.useAtomValue(atoms.localeAtom);
+    let viewName = util.useAtomValueSafe(viewModel?.viewName) ?? blockViewToName(metaView, locale);
     let viewIconUnion = util.useAtomValueSafe(viewModel?.viewIcon) ?? blockViewToIcon(metaView);
     const preIconButton = util.useAtomValueSafe(viewModel?.preIconButton);
     const useTermHeader = util.useAtomValueSafe(viewModel?.useTermHeader);

@@ -15,6 +15,7 @@ import { forwardRef, memo, useCallback, useEffect, useImperativeHandle, useRef, 
 import { makeORef } from "../store/wos";
 import { TabBadges } from "./tabbadges";
 import "./tab.scss";
+import { getCurrentLocale } from "@/app/i18n/localeutil";
 import { buildTabContextMenu } from "./tabcontextmenu";
 
 export type TabEnv = WaveEnvSubset<{
@@ -278,7 +279,7 @@ const TabInner = forwardRef<HTMLDivElement, TabProps>((props, ref) => {
     const handleContextMenu = useCallback(
         (e: React.MouseEvent<HTMLDivElement, MouseEvent>) => {
             e.preventDefault();
-            const menu = buildTabContextMenu(id, renameRef, onClose, env);
+            const menu = buildTabContextMenu(id, renameRef, onClose, env, getCurrentLocale());
             env.showContextMenu(menu, e);
         },
         [id, onClose, env]
