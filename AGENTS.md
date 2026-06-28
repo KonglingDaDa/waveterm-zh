@@ -60,12 +60,20 @@ git rebase upstream/main
 #    - rerere 会记录本次解决方案，下次同类冲突可自动套用
 
 # 6. 验证通过后推送到 origin
-git push origin main
-# 如维护了 zh-cn 分支：
-git push origin zh-cn
+# rebase 改写了历史，需 force-with-lease（见 J. 分支保护）
+git push --force-with-lease origin main
+# 同步 zh-cn（无 rebase 时可用普通 push；与 main 同步时同上）
+git push --force-with-lease origin main:zh-cn
 ```
 
 **注意：** 不要把 `upstream/main` 直接改成汉化内容；汉化 commit 应 rebase 到新官方基线上。
+
+**日常汉化提交（无 rebase）** 可直接：
+
+```bash
+git push origin main
+git push origin main:zh-cn
+```
 
 ## E. Git rerere
 
@@ -159,6 +167,86 @@ Workflow 文件：`.github/workflows/release-zh.yml`。
 ### 本地构建（可选）
 
 完整打包需 `task`、`go`、`zig` 等工具链，见上游 `BUILD.md`。CI 为推荐的发布路径；本地可仅做 `npm run build:dev` 等开发验证。
+
+### 发布记录（截至文档更新时）
+
+| 项目 | 状态 |
+|------|------|
+| 远程 tag `v0.14.5-zh.1` | 存在；由旧 workflow（tag 自动触发）启动过一次构建，**不代表当前推荐发布方式** |
+| 正式 Release 产物 | 以 [Releases](https://github.com/Bianshumeng/waveterm-zh/releases) 页面为准；后续请用手动 workflow 发布 `v0.14.5-zh.2` 及以后版本 |
+| 当前 `package.json` 版本 | `0.14.5`（与上游基线一致；汉化版序号体现在 tag 的 `-zh.{n}` 后缀） |
+
+## J. 仓库现状与 GitHub 设置
+
+### 维护模式
+
+- **单人维护**，规则从宽：不强制 PR、不强制 CI 绿灯、owner 可绕过限制。
+- 目标：防误删主分支，同时保留 rebase 后 force push 能力。
+
+### 分支保护（Branch protection）
+
+已保护分支：`main`、`zh-cn`（规则相同）。
+
+设置入口：[Settings → Branches](https://github.com/Bianshumeng/waveterm-zh/settings/branches)
+
+| 选项 | 当前值 | 对你意味着什么 |
+|------|--------|----------------|
+| **Allow deletions**（允许删除分支） | 关闭 | 不能在 GitHub 上误删 `main` / `zh-cn` |
+| **Allow force pushes**（允许 force push） | 开启 | rebase 后可用 `--force-with-lease` 推送，**不会被这条规则挡住** |
+| **Require a pull request before merging** | 关闭 | 可直接 push 到 `main`，**不必开 PR** |
+| **Require status checks to pass** | 关闭 | push 不依赖 CI 绿灯，**不会被未跑的 Actions 挡住** |
+| **Include administrators** / **Do not allow bypassing** | 关闭 | owner 操作留有余地 |
+| **Require signed commits** | 关闭 | 普通 commit 即可 |
+| **Require linear history** | 关闭 | 不强制线性历史策略 |
+| **Lock branch** | 关闭 | 分支可正常读写，未冻结 |
+
+### 提交代码时怎么做
+
+**普通汉化 commit（最常见）：**
+
+```bash
+git add <files>
+git commit -m "feat(i18n): ..."
+git push origin main
+git push origin main:zh-cn    # 保持两分支同步
+```
+
+**跟进官方 rebase 之后：**
+
+```bash
+git rebase upstream/main
+# ... 解决冲突、验证 ...
+git push --force-with-lease origin main
+git push --force-with-lease origin main:zh-cn
+```
+
+优先用 `--force-with-lease` 而不是 `--force`：若远程有你不知道的新提交，会拒绝推送，避免覆盖他人改动（将来若多人协作更安全）。
+
+### 什么操作会被挡住
+
+| 操作 | 结果 |
+|------|------|
+| 在 GitHub 删除 `main` / `zh-cn` | 被拒绝（已禁止删除） |
+| 普通 `git push` 写汉化 commit | 允许 |
+| rebase 后 `git push --force-with-lease` | 允许 |
+| 未跑 CI 就 push | 允许（未要求 status checks） |
+| 不开 PR 直接 push | 允许 |
+
+### 什么不会自动发生
+
+| 事件 | 是否触发 |
+|------|----------|
+| push 到 `main` / `zh-cn` | 不触发 Release 打包 |
+| push tag `v*-zh*` | **已不再**自动触发（已改为仅手动 workflow） |
+| 手动 Run **Release zh-CN Build** | 触发跨平台打包 |
+
+### 修改分支保护时请注意
+
+若将来收紧规则，优先评估对 **rebase + force push** 的影响：
+
+- 关闭 **Allow force pushes** → rebase 后无法正常推送到 `origin`
+- 开启 **Require status checks** → 需先配置「每次 push 必跑」的轻量 CI，否则会 push 失败
+- 开启 **Require pull request** → 日常汉化不能直接 push，需改走 PR 流程
 
 ---
 
