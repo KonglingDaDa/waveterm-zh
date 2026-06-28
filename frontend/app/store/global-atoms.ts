@@ -1,6 +1,7 @@
 // Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+import { normalizeLocale, type Locale } from "@/app/i18n";
 import { atom, Atom, PrimitiveAtom } from "jotai";
 import { globalStore } from "./jotaiStore";
 import { setWaveWindowType } from "./windowtype";
@@ -59,6 +60,10 @@ function initGlobalAtoms(initOpts: GlobalInitOptions) {
     const settingsAtom = atom((get) => {
         return get(fullConfigAtom)?.settings ?? {};
     }) as Atom<SettingsType>;
+    const localeAtom = atom((get) => {
+        const settings = get(settingsAtom);
+        return normalizeLocale(settings?.["app:locale"]) ?? "en-US";
+    }) as Atom<Locale>;
     const hasCustomAIPresetsAtom = atom((get) => {
         const fullConfig = get(fullConfigAtom);
         if (!fullConfig?.presets) {
@@ -136,6 +141,7 @@ function initGlobalAtoms(initOpts: GlobalInitOptions) {
         fullConfigAtom,
         waveaiModeConfigAtom,
         settingsAtom,
+        localeAtom,
         hasCustomAIPresetsAtom,
         hasConfigErrors,
         staticTabId: staticTabIdAtom,
