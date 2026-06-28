@@ -84,6 +84,17 @@ describe("locale slice", () => {
         expect(t("WebGL not supported", undefined, "zh-CN")).toBe("不支持 WebGL");
     });
 
+    it("terminal header tooltip keys resolve in zh-CN", () => {
+        expect(t("Restarting Command", undefined, "zh-CN")).toBe("正在重启命令");
+        expect(t("Command Exited Successfully", undefined, "zh-CN")).toBe("命令已成功退出");
+        expect(t("Exit Code: {code}", { code: 1 }, "zh-CN")).toBe("退出码：1");
+        expect(t("Multi Input ON", undefined, "zh-CN")).toBe("多输入已开启");
+        expect(t("Click to Start {noun}", { noun: "Command" }, "zh-CN")).toBe("点击开始 Command");
+        expect(t("{noun} Running. Click to Restart", { noun: "Shell" }, "zh-CN")).toBe("Shell 运行中，点击重启");
+        expect(t("Switch back to Terminal", undefined, "zh-CN")).toBe("切回终端");
+        expect(t("Switch to Wave App", undefined, "zh-CN")).toBe("切换到 Wave App");
+    });
+
     it("formatFileSizeError uses locale-aware templates with correct placeholder order", () => {
         const error = {
             fileName: "big.png",

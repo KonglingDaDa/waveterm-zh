@@ -175,7 +175,7 @@ export class TermViewModel implements ViewModel {
                         icon: "refresh",
                         iconColor: "var(--success-color)",
                         iconSpin: true,
-                        title: "Restarting Command",
+                        title: t("Restarting Command", undefined, locale),
                         noAction: true,
                     });
                 } else {
@@ -186,7 +186,7 @@ export class TermViewModel implements ViewModel {
                                 elemtype: "iconbutton",
                                 icon: "check",
                                 iconColor: "var(--success-color)",
-                                title: "Command Exited Successfully",
+                                title: t("Command Exited Successfully", undefined, locale),
                                 noAction: true,
                             });
                         } else {
@@ -194,7 +194,7 @@ export class TermViewModel implements ViewModel {
                                 elemtype: "iconbutton",
                                 icon: "xmark-large",
                                 iconColor: "var(--error-color)",
-                                title: "Exit Code: " + fullShellProcStatus?.shellprocexitcode,
+                                title: t("Exit Code: {code}", { code: fullShellProcStatus?.shellprocexitcode }, locale),
                                 noAction: true,
                             });
                         }
@@ -205,9 +205,9 @@ export class TermViewModel implements ViewModel {
             if (isMI && this.isBasicTerm(get)) {
                 rtn.push({
                     elemtype: "textbutton",
-                    text: "Multi Input ON",
+                    text: t("Multi Input ON", undefined, locale),
                     className: "yellow !py-[2px] !px-[10px] text-[11px] font-[500]",
-                    title: "Input will be sent to all connected terminals (click to disable)",
+                    title: t("Input will be sent to all connected terminals (click to disable)", undefined, locale),
                     onClick: () => {
                         globalStore.set(this.tabModel.isTermMultiInput, false);
                     },
@@ -283,6 +283,7 @@ export class TermViewModel implements ViewModel {
         });
         this.noPadding = jotai.atom(true);
         this.endIconButtons = jotai.atom((get) => {
+            const locale = get(atoms.localeAtom);
             const blockData = get(this.blockAtom);
             const shellProcStatus = get(this.shellProcStatus);
             const connStatus = get(this.connStatus);
@@ -315,13 +316,13 @@ export class TermViewModel implements ViewModel {
             const noun = isCmd ? "Command" : "Shell";
             if (shellProcStatus == "init") {
                 iconName = "play";
-                title = "Click to Start " + noun;
+                title = t("Click to Start {noun}", { noun }, locale);
             } else if (shellProcStatus == "running") {
                 iconName = "refresh";
-                title = noun + " Running. Click to Restart";
+                title = t("{noun} Running. Click to Restart", { noun }, locale);
             } else if (shellProcStatus == "done") {
                 iconName = "refresh";
-                title = noun + " Exited. Click to Restart";
+                title = t("{noun} Exited. Click to Restart", { noun }, locale);
             }
             if (iconName != null) {
                 const buttonDecl: IconButtonDecl = {
