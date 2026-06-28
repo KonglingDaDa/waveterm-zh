@@ -66,8 +66,12 @@ function UpgradeOnboardingPatchV() {
                         <UpgradeOnboardingFooter
                             hasPrev={hasPrev}
                             hasNext={hasNext}
-                            prevText={version.prevText}
-                            nextText={version.nextText}
+                            prevText={
+                                version.prevVersion ? `Prev (${version.prevVersion})` : undefined
+                            }
+                            nextText={
+                                version.nextVersion ? `Next (${version.nextVersion})` : undefined
+                            }
                             onPrev={noop}
                             onNext={noop}
                             onClose={noop}

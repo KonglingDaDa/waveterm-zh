@@ -258,6 +258,29 @@ describe("locale slice", () => {
         expect(getMainProcessLocale()).toBe("en-US");
     });
 
+    it("onboarding button keys resolve in zh-CN", () => {
+        expect(t("Continue", undefined, "zh-CN")).toBe("继续");
+        expect(t("Get Started", undefined, "zh-CN")).toBe("开始");
+        expect(t("Next", undefined, "zh-CN")).toBe("下一步");
+        expect(t("Prev", undefined, "zh-CN")).toBe("上一步");
+        expect(t("Skip Feature Tour", undefined, "zh-CN")).toBe("跳过功能导览");
+        expect(t("Maybe Later", undefined, "zh-CN")).toBe("以后再说");
+    });
+
+    it("Wave {version} Update placeholder resolves in zh-CN", () => {
+        expect(t("Wave {version} Update", { version: "v0.14.5" }, "zh-CN")).toBe("Wave v0.14.5 更新");
+        expect(t("Prev ({version})", { version: "v0.14.4" }, "zh-CN")).toBe("上一步（v0.14.4）");
+        expect(t("Next ({version})", { version: "v0.12.2" }, "zh-CN")).toBe("下一步（v0.12.2）");
+    });
+
+    it("onboarding locale switch pattern refreshes sample key", () => {
+        const localeAtom = atom<"en-US" | "zh-CN">("en-US");
+        const welcomeAtom = atom((get) => t("Welcome to Wave Terminal", undefined, get(localeAtom)));
+        expect(globalStore.get(welcomeAtom)).toBe("Welcome to Wave Terminal");
+        globalStore.set(localeAtom, "zh-CN");
+        expect(globalStore.get(welcomeAtom)).toBe("欢迎使用 Wave Terminal");
+    });
+
     it("getThinkingMessage returns locale-specific status text", () => {
         const parts = [
             {

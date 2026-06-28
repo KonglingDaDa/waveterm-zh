@@ -1,13 +1,17 @@
 // Copyright 2025, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+import { useT } from "@/app/i18n/react";
+
 const UpgradeOnboardingModal_v0_12_1_Content = () => {
+    const tt = useT();
     return (
         <div className="flex flex-col items-start gap-6 w-full mb-4 unselectable">
             <div className="text-secondary leading-relaxed">
                 <p className="mb-0">
-                    Patch release focused on shell integration improvements, Wave AI enhancements, and restoring syntax
-                    highlighting in code editor blocks.
+                    {tt(
+                        "Patch release focused on shell integration improvements, Wave AI enhancements, and restoring syntax highlighting in code editor blocks."
+                    )}
                 </p>
             </div>
 
@@ -17,17 +21,21 @@ const UpgradeOnboardingModal_v0_12_1_Content = () => {
                 </div>
                 <div className="flex flex-col items-start gap-2 flex-1">
                     <div className="text-foreground text-base font-semibold leading-[18px]">
-                        Shell Integration & Context
+                        {tt("Shell Integration & Context")}
                     </div>
                     <div className="text-secondary leading-5">
                         <ul className="list-disc list-outside space-y-1 pl-5">
                             <li>
-                                <strong>OSC 7 Support</strong> - Wave now automatically tracks and restores your current
-                                directory across restarts for bash, zsh, fish, and pwsh shells
+                                <strong>{tt("OSC 7 Support")}</strong> -{" "}
+                                {tt(
+                                    "Wave now automatically tracks and restores your current directory across restarts for bash, zsh, fish, and pwsh shells"
+                                )}
                             </li>
                             <li>
-                                <strong>Shell Context Tracking</strong> - Tracks when your shell is ready, last command
-                                executed, and exit codes for better terminal management
+                                <strong>{tt("Shell Context Tracking")}</strong> -{" "}
+                                {tt(
+                                    "Tracks when your shell is ready, last command executed, and exit codes for better terminal management"
+                                )}
                             </li>
                         </ul>
                     </div>
@@ -40,17 +48,18 @@ const UpgradeOnboardingModal_v0_12_1_Content = () => {
                 </div>
                 <div className="flex flex-col items-start gap-2 flex-1">
                     <div className="text-foreground text-base font-semibold leading-[18px]">
-                        Wave AI Improvements
+                        {tt("Wave AI Improvements")}
                     </div>
                     <div className="text-secondary leading-5">
                         <ul className="list-disc list-outside space-y-1 pl-5">
-                            <li>Display reasoning summaries while waiting for AI responses</li>
+                            <li>{tt("Display reasoning summaries while waiting for AI responses")}</li>
                             <li>
-                                Enhanced terminal context - AI now has access to shell state, current directory, command
-                                history, and exit codes
+                                {tt(
+                                    "Enhanced terminal context - AI now has access to shell state, current directory, command history, and exit codes"
+                                )}
                             </li>
-                            <li>Added feedback buttons (thumbs up/down) for AI responses</li>
-                            <li>Added copy button to easily copy AI responses to clipboard</li>
+                            <li>{tt("Added feedback buttons (thumbs up/down) for AI responses")}</li>
+                            <li>{tt("Added copy button to easily copy AI responses to clipboard")}</li>
                         </ul>
                     </div>
                 </div>
@@ -61,12 +70,12 @@ const UpgradeOnboardingModal_v0_12_1_Content = () => {
                     <i className="text-[24px] text-accent fa-solid fa-wrench"></i>
                 </div>
                 <div className="flex flex-col items-start gap-2 flex-1">
-                    <div className="text-foreground text-base font-semibold leading-[18px]">Other Changes</div>
+                    <div className="text-foreground text-base font-semibold leading-[18px]">{tt("Other Changes")}</div>
                     <div className="text-secondary leading-5">
                         <ul className="list-disc list-outside space-y-1 pl-5">
-                            <li>Mobile user agent emulation support for web widgets</li>
-                            <li>Fixed padding for header buttons in code editor</li>
-                            <li>Restored syntax highlighting in code editor preview blocks</li>
+                            <li>{tt("Mobile user agent emulation support for web widgets")}</li>
+                            <li>{tt("Fixed padding for header buttons in code editor")}</li>
+                            <li>{tt("Restored syntax highlighting in code editor preview blocks")}</li>
                         </ul>
                     </div>
                 </div>

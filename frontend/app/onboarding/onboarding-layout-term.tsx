@@ -2,8 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { MagnifyIcon } from "@/app/element/magnify";
+import { useT } from "@/app/i18n/react";
 import { cn, makeIconClass } from "@/util/util";
-import { useCallback, useLayoutEffect, useState } from "react";
+import { useCallback, useLayoutEffect, useMemo, useState } from "react";
 import { CommandReveal } from "./onboarding-command";
 
 export type FakeTermBlockProps = {
@@ -74,7 +75,7 @@ export const FakeTermBlock = ({
     );
 };
 
-const deployMessages = [
+const deployMessageKeys = [
     "[1/8] Installing dependencies...",
     "[2/8] Generating TypeScript types from Go...",
     "[3/8] Building Go backend (wavesrv)...",
@@ -83,11 +84,12 @@ const deployMessages = [
     "[6/8] Packaging application artifacts...",
     "[7/8] Code signing binaries...",
     "[8/8] Deploy complete ✓",
-];
+] as const;
 
 type OverlayState = null | "disconnected" | "connected";
 
 const ConnectionOverlay = ({ state }: { state: OverlayState }) => {
+    const tt = useT();
     if (!state) return null;
 
     const isConnected = state === "connected";
@@ -103,7 +105,7 @@ const ConnectionOverlay = ({ state }: { state: OverlayState }) => {
                     )}
                 />
                 <div className="text-2xl font-semibold text-foreground">
-                    {isConnected ? "Connected" : "Disconnected"}
+                    {isConnected ? tt("Connected") : tt("Disconnected")}
                 </div>
             </div>
         </div>
@@ -117,6 +119,8 @@ const DeployLogOutput = ({
     onComplete?: () => void;
     onOverlayStateChange?: (state: OverlayState) => void;
 }) => {
+    const tt = useT();
+    const deployMessages = useMemo(() => deployMessageKeys.map((key) => tt(key)), [tt]);
     const [key, setKey] = useState(0);
     const [commandComplete, setCommandComplete] = useState(false);
     const [visibleLines, setVisibleLines] = useState(0);
