@@ -1,6 +1,7 @@
 // Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+import { useT } from "@/app/i18n/react";
 import { getTabBadgeAtom } from "@/app/store/badge";
 import { refocusNode } from "@/app/store/global";
 import { getTabModelByTabId } from "@/app/store/tab-model";
@@ -15,6 +16,7 @@ import { forwardRef, memo, useCallback, useEffect, useImperativeHandle, useRef, 
 import { makeORef } from "../store/wos";
 import { TabBadges } from "./tabbadges";
 import "./tab.scss";
+import { getCurrentLocale } from "@/app/i18n/localeutil";
 import { buildTabContextMenu } from "./tabcontextmenu";
 
 export type TabEnv = WaveEnvSubset<{
@@ -52,6 +54,7 @@ interface TabVProps {
 }
 
 const TabV = forwardRef<HTMLDivElement, TabVProps>((props, ref) => {
+    const tt = useT();
     const {
         tabId,
         tabName,
@@ -209,7 +212,7 @@ const TabV = forwardRef<HTMLDivElement, TabVProps>((props, ref) => {
                     className="ghost grey close"
                     onClick={onClose}
                     onMouseDown={handleMouseDownOnClose}
-                    title="Close Tab"
+                    title={tt("Close Tab")}
                 >
                     <i className="fa fa-solid fa-xmark" />
                 </Button>
@@ -278,7 +281,7 @@ const TabInner = forwardRef<HTMLDivElement, TabProps>((props, ref) => {
     const handleContextMenu = useCallback(
         (e: React.MouseEvent<HTMLDivElement, MouseEvent>) => {
             e.preventDefault();
-            const menu = buildTabContextMenu(id, renameRef, onClose, env);
+            const menu = buildTabContextMenu(id, renameRef, onClose, env, getCurrentLocale());
             env.showContextMenu(menu, e);
         },
         [id, onClose, env]

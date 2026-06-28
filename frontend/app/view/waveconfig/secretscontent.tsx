@@ -1,6 +1,7 @@
 // Copyright 2025, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+import { useT } from "@/app/i18n/react";
 import { SecretNameRegex, type WaveConfigViewModel } from "@/app/view/waveconfig/waveconfig-model";
 import { cn } from "@/util/util";
 import { useAtomValue, useSetAtom } from "jotai";
@@ -39,17 +40,18 @@ const LoadingSpinner = memo(({ message }: { message: string }) => {
 LoadingSpinner.displayName = "LoadingSpinner";
 
 const EmptyState = memo(({ onAddSecret }: { onAddSecret: () => void }) => {
+    const tt = useT();
     return (
         <div className="flex flex-col items-center justify-center gap-4 py-12 h-full bg-zinc-800/50 rounded-lg">
             <i className="fa-sharp fa-solid fa-key text-4xl text-zinc-600" />
-            <h3 className="text-lg font-semibold text-zinc-400">No Secrets</h3>
-            <p className="text-zinc-500">Add a secret to get started</p>
+            <h3 className="text-lg font-semibold text-zinc-400">{tt("No Secrets")}</h3>
+            <p className="text-zinc-500">{tt("Add a secret to get started")}</p>
             <button
                 className="flex items-center gap-2 px-4 py-2 bg-accent-600 hover:bg-accent-500 rounded cursor-pointer transition-colors"
                 onClick={onAddSecret}
             >
                 <i className="fa-sharp fa-solid fa-plus" />
-                <span className="font-medium">Add New Secret</span>
+                <span className="font-medium">{tt("Add New Secret")}</span>
             </button>
         </div>
     );
@@ -57,11 +59,12 @@ const EmptyState = memo(({ onAddSecret }: { onAddSecret: () => void }) => {
 EmptyState.displayName = "EmptyState";
 
 const CLIInfoBubble = memo(() => {
+    const tt = useT();
     return (
         <div className="flex flex-col gap-2 p-4 m-4 bg-zinc-800/50 rounded-lg">
             <div className="flex items-center gap-2">
                 <i className="fa-sharp fa-solid fa-terminal text-zinc-400" />
-                <div className="text-sm font-medium text-zinc-300">CLI Access</div>
+                <div className="text-sm font-medium text-zinc-300">{tt("CLI Access")}</div>
             </div>
             <div className="font-mono text-xs bg-black/20 px-3 py-2 rounded leading-relaxed text-zinc-300">
                 wsh secret list
@@ -82,6 +85,7 @@ interface SecretListViewProps {
 }
 
 const SecretListView = memo(({ secretNames, onSelectSecret, onAddSecret }: SecretListViewProps) => {
+    const tt = useT();
     return (
         <div className="flex flex-col h-full w-full rounded-lg">
             <div className="flex flex-col divide-y divide-zinc-700">
@@ -105,7 +109,7 @@ const SecretListView = memo(({ secretNames, onSelectSecret, onAddSecret }: Secre
                     onClick={onAddSecret}
                 >
                     <i className="fa-sharp fa-solid fa-plus text-accent-500" />
-                    <span className="font-medium text-accent-500">Add New Secret</span>
+                    <span className="font-medium text-accent-500">{tt("Add New Secret")}</span>
                 </div>
             </div>
             <CLIInfoBubble />
@@ -134,13 +138,14 @@ const AddSecretForm = memo(
         onCancel,
         onSubmit,
     }: AddSecretFormProps) => {
+        const tt = useT();
         const isNameInvalid = newSecretName !== "" && !SecretNameRegex.test(newSecretName);
 
         return (
             <div className="flex flex-col gap-4 min-h-full p-6 bg-zinc-800/50 rounded-lg">
-                <h3 className="text-lg font-semibold">Add New Secret</h3>
+                <h3 className="text-lg font-semibold">{tt("Add New Secret")}</h3>
                 <div className="flex flex-col gap-2">
-                    <label className="text-sm font-medium">Secret Name</label>
+                    <label className="text-sm font-medium">{tt("Secret Name")}</label>
                     <input
                         type="text"
                         className={cn(
@@ -155,16 +160,16 @@ const AddSecretForm = memo(
                         disabled={isLoading}
                     />
                     <div className="text-xs text-zinc-400">
-                        Must start with a letter and contain only letters, numbers, and underscores
+                        {tt("Must start with a letter and contain only letters, numbers, and underscores")}
                     </div>
                 </div>
                 <div className="flex flex-col gap-2">
-                    <label className="text-sm font-medium">Secret Value</label>
+                    <label className="text-sm font-medium">{tt("Secret Value")}</label>
                     <textarea
                         className="px-3 py-2 bg-zinc-800 border border-zinc-600 rounded focus:outline-none focus:border-accent-500 font-mono text-sm"
                         value={newSecretValue}
                         onChange={(e) => onValueChange(e.target.value)}
-                        placeholder="Enter secret value..."
+                        placeholder={tt("Enter secret value...")}
                         disabled={isLoading}
                         rows={4}
                     />
@@ -175,7 +180,7 @@ const AddSecretForm = memo(
                         onClick={onCancel}
                         disabled={isLoading}
                     >
-                        Cancel
+                        {tt("Cancel")}
                     </button>
                     <button
                         className="px-4 py-2 bg-accent-600 hover:bg-accent-500 rounded cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
@@ -185,10 +190,10 @@ const AddSecretForm = memo(
                         {isLoading ? (
                             <>
                                 <i className="fa-sharp fa-solid fa-spinner fa-spin" />
-                                Adding...
+                                {tt("Adding...")}
                             </>
                         ) : (
-                            "Add Secret"
+                            tt("Add Secret")
                         )}
                     </button>
                 </div>
@@ -203,6 +208,7 @@ interface SecretDetailViewProps {
 }
 
 const SecretDetailView = memo(({ model }: SecretDetailViewProps) => {
+    const tt = useT();
     const secretName = useAtomValue(model.selectedSecretAtom);
     const secretValue = useAtomValue(model.secretValueAtom);
     const secretShown = useAtomValue(model.secretShownAtom);
@@ -220,7 +226,7 @@ const SecretDetailView = memo(({ model }: SecretDetailViewProps) => {
                 <h3 className="text-lg font-semibold">{secretName}</h3>
             </div>
             <div className="flex flex-col gap-2">
-                <label className="text-sm font-medium">Secret Value</label>
+                <label className="text-sm font-medium">{tt("Secret Value")}</label>
                 <textarea
                     ref={(ref) => {
                         model.secretValueRef = ref;
@@ -238,14 +244,14 @@ const SecretDetailView = memo(({ model }: SecretDetailViewProps) => {
                     }}
                     disabled={isLoading}
                     rows={6}
-                    placeholder={!secretShown ? "Enter new secret value..." : ""}
+                    placeholder={!secretShown ? tt("Enter new secret value...") : ""}
                 />
                 {!secretShown && (
                     <div className="text-sm text-zinc-400">
-                        The current secret value is not shown by default for security purposes.{" "}
+                        {tt("The current secret value is not shown by default for security purposes.")}{" "}
                         {isLoading ? (
                             <span className="text-zinc-500">
-                                <i className="fa-sharp fa-solid fa-spinner fa-spin" /> Loading...
+                                <i className="fa-sharp fa-solid fa-spinner fa-spin" /> {tt("Loading...")}
                             </span>
                         ) : (
                             <button
@@ -253,7 +259,7 @@ const SecretDetailView = memo(({ model }: SecretDetailViewProps) => {
                                 onClick={() => model.showSecret()}
                                 disabled={isLoading}
                             >
-                                Show Secret
+                                {tt("Show Secret")}
                             </button>
                         )}
                     </div>
@@ -264,17 +270,17 @@ const SecretDetailView = memo(({ model }: SecretDetailViewProps) => {
                     className="px-4 py-2 bg-red-600 hover:bg-red-500 rounded cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                     onClick={() => model.deleteSecret()}
                     disabled={isLoading}
-                    title="Delete this secret"
+                    title={tt("Delete this secret")}
                 >
                     {isLoading ? (
                         <>
                             <i className="fa-sharp fa-solid fa-spinner fa-spin" />
-                            Deleting...
+                            {tt("Deleting...")}
                         </>
                     ) : (
                         <>
                             <i className="fa-sharp fa-solid fa-trash" />
-                            Delete
+                            {tt("Delete")}
                         </>
                     )}
                 </button>
@@ -284,7 +290,7 @@ const SecretDetailView = memo(({ model }: SecretDetailViewProps) => {
                         onClick={() => model.closeSecretView()}
                         disabled={isLoading}
                     >
-                        Cancel
+                        {tt("Cancel")}
                     </button>
                     <button
                         className="px-4 py-2 bg-accent-600 hover:bg-accent-500 rounded cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
@@ -294,10 +300,10 @@ const SecretDetailView = memo(({ model }: SecretDetailViewProps) => {
                         {isLoading ? (
                             <>
                                 <i className="fa-sharp fa-solid fa-spinner fa-spin" />
-                                Saving...
+                                {tt("Saving...")}
                             </>
                         ) : (
-                            "Save"
+                            tt("Save")
                         )}
                     </button>
                 </div>
@@ -312,6 +318,7 @@ interface SecretsContentProps {
 }
 
 export const SecretsContent = memo(({ model }: SecretsContentProps) => {
+    const tt = useT();
     const secretNames = useAtomValue(model.secretNamesAtom);
     const selectedSecret = useAtomValue(model.selectedSecretAtom);
     const isLoading = useAtomValue(model.isLoadingAtom);
@@ -342,7 +349,7 @@ export const SecretsContent = memo(({ model }: SecretsContentProps) => {
         return (
             <div className="w-full h-full">
                 <div>
-                    <LoadingSpinner message="Loading secrets..." />
+                    <LoadingSpinner message={tt("Loading secrets...")} />
                 </div>
             </div>
         );

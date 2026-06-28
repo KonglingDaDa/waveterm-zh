@@ -3,6 +3,14 @@
 
 import logoUrl from "@/app/asset/logo.svg?url";
 import type { BlockNodeModel } from "@/app/block/blocktypes";
+import {
+    localizeWidgetDescription,
+    localizeWidgetLabel,
+    sortWidgetEntriesByDisplayOrder,
+    widgetMatchesSearch,
+} from "@/app/i18n/display-names";
+import { t } from "@/app/i18n";
+import { useLocale, useT } from "@/app/i18n/react";
 import { atoms, globalStore, replaceBlock } from "@/app/store/global";
 import type { TabModel } from "@/app/store/tab-model";
 import { checkKeyPressed, keydownWrapper } from "@/util/keyutil";
@@ -11,12 +19,7 @@ import clsx from "clsx";
 import { atom, useAtom, useAtomValue } from "jotai";
 import React, { useEffect, useLayoutEffect, useRef } from "react";
 
-function sortByDisplayOrder(wmap: { [key: string]: WidgetConfigType } | null | undefined): WidgetConfigType[] {
-    if (!wmap) return [];
-    const wlist = Object.values(wmap);
-    wlist.sort((a, b) => (a["display:order"] ?? 0) - (b["display:order"] ?? 0));
-    return wlist;
-}
+type WidgetEntry = { id: string; widget: WidgetConfigType };
 
 type GridLayoutType = { columns: number; tileWidth: number; tileHeight: number; showLabel: boolean };
 
@@ -26,7 +29,7 @@ export class LauncherViewModel implements ViewModel {
     tabModel: TabModel;
     viewType = "launcher";
     viewIcon = atom("shapes");
-    viewName = atom("Widget Launcher");
+    viewName = atom((get) => t("Widget Launcher", undefined, get(atoms.localeAtom)));
     viewComponent = LauncherView;
     noHeader = atom(true);
     inputRef = { current: null } as React.RefObject<HTMLInputElement>;
@@ -43,11 +46,13 @@ export class LauncherViewModel implements ViewModel {
 
     filteredWidgetsAtom = atom((get) => {
         const searchTerm = get(this.searchTerm);
-        const widgets = sortByDisplayOrder(get(atoms.fullConfigAtom)?.widgets || {});
-        return widgets.filter(
-            (widget) =>
-                !widget["display:hidden"] &&
-                (!searchTerm || widget.label?.toLowerCase().includes(searchTerm.toLowerCase()))
+        const locale = get(atoms.localeAtom);
+        const entries = sortWidgetEntriesByDisplayOrder(
+            Object.entries(get(atoms.fullConfigAtom)?.widgets || {}).map(([id, widget]) => ({ id, widget }))
+        );
+        return entries.filter(
+            ({ id, widget }) =>
+                !widget["display:hidden"] && widgetMatchesSearch(id, widget, searchTerm, locale)
         );
     });
 
@@ -116,7 +121,7 @@ export class LauncherViewModel implements ViewModel {
                 return true;
             }
             if (filteredWidgets[selectedIndex]) {
-                this.handleWidgetSelect(filteredWidgets[selectedIndex]);
+                this.handleWidgetSelect(filteredWidgets[selectedIndex].widget);
             }
             return true;
         }
@@ -138,6 +143,8 @@ export class LauncherViewModel implements ViewModel {
 }
 
 function LauncherView({ blockId, model }: ViewComponentProps<LauncherViewModel>) {
+    const tt = useT();
+    const locale = useLocale();
     // Search and selection state
     const [searchTerm, setSearchTerm] = useAtom(model.searchTerm);
     const [selectedIndex, setSelectedIndex] = useAtom(model.selectedIndex);
@@ -219,7 +226,7 @@ function LauncherView({ blockId, model }: ViewComponentProps<LauncherViewModel>)
                 onKeyDown={keydownWrapper(model.keyDownHandler.bind(model))}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="sr-only dummy"
-                aria-label="Search widgets"
+                aria-label={tt("Search widgets")}
             />
 
             {/* Logo */}
@@ -236,11 +243,15 @@ function LauncherView({ blockId, model }: ViewComponentProps<LauncherViewModel>)
                     gridTemplateColumns: `repeat(${gridLayout.columns}, ${finalTileWidth}px)`,
                 }}
             >
-                {filteredWidgets.map((widget, index) => (
+                {filteredWidgets.map(({ id, widget }, index) => {
+                    const displayLabel = localizeWidgetLabel(id, widget.label ?? "", locale);
+                    const displayDescription =
+                        localizeWidgetDescription(id, widget.description, locale) || displayLabel;
+                    return (
                     <div
-                        key={index}
+                        key={id}
                         onClick={() => model.handleWidgetSelect(widget)}
-                        title={widget.description || widget.label}
+                        title={displayDescription}
                         className={clsx(
                             "flex flex-col items-center justify-center cursor-pointer rounded-md p-2 text-center",
                             "transition-colors duration-150",
@@ -260,23 +271,25 @@ function LauncherView({ blockId, model }: ViewComponentProps<LauncherViewModel>)
                                 })}
                             />
                         </div>
-                        {gridLayout.showLabel && !isBlank(widget.label) && (
+                        {gridLayout.showLabel && !isBlank(displayLabel) && (
                             <div className="mt-1 w-full text-[11px] leading-4 overflow-hidden text-ellipsis whitespace-nowrap">
-                                {widget.label}
+                                {displayLabel}
                             </div>
                         )}
                     </div>
-                ))}
+                    );
+                })}
             </div>
 
             {/* Search instructions */}
             <div className="mt-4 text-secondary text-xs">
                 {filteredWidgets.length === 0 ? (
-                    <span>No widgets found. Press Escape to clear search.</span>
+                    <span>{tt("No widgets found. Press Escape to clear search.")}</span>
                 ) : (
                     <span>
-                        {searchTerm == "" ? "Type to Filter" : "Searching " + '"' + searchTerm + '"'}, Enter to Launch,
-                        {searchTerm == "" ? "Arrow Keys to Navigate" : null}
+                        {searchTerm === ""
+                            ? `${tt("Type to Filter")}, ${tt("Enter to Launch")}, ${tt("Arrow Keys to Navigate")}`
+                            : `${tt('Searching "{search}"', { search: searchTerm })}, ${tt("Enter to Launch")}`}
                     </span>
                 )}
             </div>
