@@ -102,7 +102,14 @@ Go/task 可用时补跑：
 task generate
 ```
 
-## G. 排除提交内容
+## G. 许可证与对外声明
+
+- 上游许可证为 **Apache-2.0**；本仓库不得更换或移除 `LICENSE` / `NOTICE` 中的上游版权声明。
+- 本地化属于衍生作品：更新 `NOTICE` 时**追加**维护方信息，不要删除 Command Line Inc. 条目。
+- `README.md` 顶部须保留非官方 fork 声明，避免与官方 [waveterm.dev](https://www.waveterm.dev) 混淆。
+- 发布二进制时建议在名称中区分（如 `waveterm-zh`），并随附 `LICENSE` 与 `NOTICE`。
+
+## H. 排除提交内容
 
 不要提交：
 

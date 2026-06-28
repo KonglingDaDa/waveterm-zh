@@ -11,6 +11,12 @@
 
 # Wave Terminal
 
+> **Unofficial fork — Simplified Chinese localization (简体中文本地化)**
+>
+> This repository ([Bianshumeng/waveterm-zh](https://github.com/Bianshumeng/waveterm-zh)) is **not** affiliated with Command Line Inc. or the official [wavetermdev/waveterm](https://github.com/wavetermdev/waveterm) project.
+> It maintains a Simplified Chinese (`zh-CN`) UI localization on top of the upstream codebase.
+> For the official release, visit [waveterm.dev](https://www.waveterm.dev).
+
 <div align="center">
 
 [English](README.md) | [한국어](README.ko.md) | [繁體中文](README.zh-TW.md)
@@ -114,4 +120,6 @@ Sponsorship helps support the time spent building and maintaining the project.
 
 ## License
 
-Wave Terminal is licensed under the Apache-2.0 License. For more information on our dependencies, see [here](./ACKNOWLEDGEMENTS.md).
+Wave Terminal is licensed under the [Apache-2.0 License](./LICENSE). The original software is Copyright Command Line Inc. (see [NOTICE](./NOTICE)).
+
+This repository is a derivative work that adds Simplified Chinese localization. It is distributed under the same Apache-2.0 terms. For third-party dependency information, see [ACKNOWLEDGEMENTS.md](./ACKNOWLEDGEMENTS.md).
