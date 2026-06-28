@@ -11,6 +11,7 @@ import { SysinfoViewModel } from "@/app/view/sysinfo/sysinfo";
 import { TsunamiViewModel } from "@/app/view/tsunami/tsunami";
 import { VDomModel } from "@/app/view/vdom/vdom-model";
 import { WaveEnv } from "@/app/waveenv/waveenv";
+import { atoms } from "@/app/store/global-atoms";
 import { atom } from "jotai";
 import { QuickTipsViewModel } from "../view/quicktipsview/quicktipsview";
 import { WaveConfigViewModel } from "../view/waveconfig/waveconfig-model";
@@ -40,7 +41,7 @@ function makeDefaultViewModel(viewType: string): ViewModel {
     const viewModel: ViewModel = {
         viewType: viewType,
         viewIcon: atom(blockViewToIcon(viewType)),
-        viewName: atom(blockViewToName(viewType)),
+        viewName: atom((get) => blockViewToName(viewType, get(atoms.localeAtom))),
         preIconButton: atom(null),
         endIconButtons: atom(null),
         viewComponent: null,

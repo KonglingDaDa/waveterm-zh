@@ -10,6 +10,7 @@ import {
 import { IconButton, ToggleIconButton } from "@/element/iconbutton";
 import { MagnifyIcon } from "@/element/magnify";
 import { MenuButton } from "@/element/menubutton";
+import { t, type Locale } from "@/app/i18n";
 import * as util from "@/util/util";
 import clsx from "clsx";
 import * as jotai from "jotai";
@@ -48,30 +49,30 @@ export function blockViewToIcon(view: string): string {
     return "square";
 }
 
-export function blockViewToName(view: string): string {
+export function blockViewToName(view: string, locale?: Locale): string {
     if (util.isBlank(view)) {
-        return "(No View)";
+        return t("(No View)", undefined, locale);
     }
     if (view == "term") {
-        return "Terminal";
+        return t("Terminal", undefined, locale);
     }
     if (view == "preview") {
-        return "Preview";
+        return t("Preview", undefined, locale);
     }
     if (view == "web") {
-        return "Web";
+        return t("Web", undefined, locale);
     }
     if (view == "waveai") {
-        return "WaveAI";
+        return t("WaveAI", undefined, locale);
     }
     if (view == "help") {
-        return "Help";
+        return t("Help", undefined, locale);
     }
     if (view == "tips") {
-        return "Tips";
+        return t("Tips", undefined, locale);
     }
     if (view == "processviewer") {
-        return "Processes";
+        return t("Processes", undefined, locale);
     }
     return view;
 }

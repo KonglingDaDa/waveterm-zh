@@ -1,6 +1,8 @@
 // Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+import { t, type I18nParams, type Locale } from "@/app/i18n";
+import { useLocale, useT } from "@/app/i18n/react";
 import { ContextMenuModel } from "@/app/store/contextmenu";
 import { globalStore } from "@/app/store/jotaiStore";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
@@ -111,6 +113,8 @@ function DirectoryTable({
     newFile,
     newDirectory,
 }: DirectoryTableProps) {
+    const tt = useT();
+    const locale = useLocale();
     const env = useWaveEnv<PreviewEnv>();
     const fullConfig = useAtomValue(env.atoms.fullConfigAtom);
     const defaultSort = useAtomValue(env.getSettingsKeyAtom("preview:defaultsort")) ?? "name";
@@ -148,42 +152,42 @@ function DirectoryTable({
             }),
             columnHelper.accessor("name", {
                 cell: (info) => <span className="dir-table-name ellipsis">{info.getValue()}</span>,
-                header: () => <span className="dir-table-head-name">Name</span>,
+                header: () => <span className="dir-table-head-name">{tt("Name")}</span>,
                 sortingFn: "alphanumeric",
                 size: 200,
                 minSize: 90,
             }),
             columnHelper.accessor("modestr", {
                 cell: (info) => <span className="dir-table-modestr">{info.getValue()}</span>,
-                header: () => <span>Perm</span>,
+                header: () => <span>{tt("Perm")}</span>,
                 size: 91,
                 minSize: 90,
                 sortingFn: "alphanumeric",
             }),
             columnHelper.accessor("modtime", {
                 cell: (info) => <span className="dir-table-lastmod">{getLastModifiedTime(info.getValue())}</span>,
-                header: () => <span>Last Modified</span>,
+                header: () => <span>{tt("Last Modified")}</span>,
                 size: 91,
                 minSize: 65,
                 sortingFn: "datetime",
             }),
             columnHelper.accessor("size", {
                 cell: (info) => <span className="dir-table-size">{getBestUnit(info.getValue())}</span>,
-                header: () => <span className="dir-table-head-size">Size</span>,
+                header: () => <span className="dir-table-head-size">{tt("Size")}</span>,
                 size: 55,
                 minSize: 50,
                 sortingFn: "auto",
             }),
             columnHelper.accessor("mimetype", {
                 cell: (info) => <span className="dir-table-type ellipsis">{cleanMimetype(info.getValue() ?? "")}</span>,
-                header: () => <span className="dir-table-head-type">Type</span>,
+                header: () => <span className="dir-table-head-type">{tt("Type")}</span>,
                 size: 97,
                 minSize: 97,
                 sortingFn: "alphanumeric",
             }),
             columnHelper.accessor("path", {}),
         ],
-        [fullConfig]
+        [fullConfig, locale, tt]
     );
 
     const setEntryManagerProps = useSetAtom(entryManagerOverlayPropsAtom);
@@ -200,13 +204,13 @@ function DirectoryTable({
                         const lastInstance = path.lastIndexOf(fileName);
                         newPath = path.substring(0, lastInstance) + newName;
                         console.log(`replacing ${fileName} with ${newName}: ${path}`);
-                        handleRename(model, path, newPath, isDir, setErrorMsg);
+                        handleRename(model, path, newPath, isDir, setErrorMsg, locale);
                     }
                     setEntryManagerProps(undefined);
                 },
             });
         },
-        [model, setErrorMsg]
+        [model, setErrorMsg, locale, setEntryManagerProps]
     );
 
     const initialSorting = defaultSort === "modtime" ? [{ id: "modtime", desc: true }] : [{ id: "name", desc: false }];
@@ -292,6 +296,7 @@ function DirectoryTable({
                 setSelectedPath={setSelectedPath}
                 setRefreshVersion={setRefreshVersion}
                 osRef={osRef.current}
+                locale={locale}
             />
         </OverlayScrollbarsComponent>
     );
@@ -309,6 +314,7 @@ interface TableBodyProps {
     setSelectedPath: (_: string) => void;
     setRefreshVersion: React.Dispatch<React.SetStateAction<number>>;
     osRef: OverlayScrollbarsComponentRef;
+    locale: Locale;
 }
 
 function TableBody({
@@ -321,7 +327,12 @@ function TableBody({
     setSearch,
     setRefreshVersion,
     osRef,
+    locale,
 }: TableBodyProps) {
+    const tl = useCallback(
+        (key: string, params?: I18nParams) => t(key, params, locale),
+        [locale]
+    );
     const searchActive = useAtomValue(model.directorySearchActive);
     const dummyLineRef = useRef<HTMLDivElement>(null);
     const warningBoxRef = useRef<HTMLDivElement>(null);
@@ -370,19 +381,19 @@ function TableBody({
             const fileName = finfo.path.split("/").pop();
             const menu: ContextMenuItem[] = [
                 {
-                    label: "New File",
+                    label: tl("New File"),
                     click: () => {
                         table.options.meta.newFile();
                     },
                 },
                 {
-                    label: "New Folder",
+                    label: tl("New Folder"),
                     click: () => {
                         table.options.meta.newDirectory();
                     },
                 },
                 {
-                    label: "Rename",
+                    label: tl("Rename"),
                     click: () => {
                         table.options.meta.updateName(finfo.path, finfo.isdir);
                     },
@@ -391,19 +402,19 @@ function TableBody({
                     type: "separator",
                 },
                 {
-                    label: "Copy File Name",
+                    label: tl("Copy File Name"),
                     click: () => fireAndForget(() => navigator.clipboard.writeText(fileName)),
                 },
                 {
-                    label: "Copy Full File Name",
+                    label: tl("Copy Full File Name"),
                     click: () => fireAndForget(() => navigator.clipboard.writeText(finfo.path)),
                 },
                 {
-                    label: "Copy File Name (Shell Quoted)",
+                    label: tl("Copy File Name (Shell Quoted)"),
                     click: () => fireAndForget(() => navigator.clipboard.writeText(shellQuote([fileName]))),
                 },
                 {
-                    label: "Copy Full File Name (Shell Quoted)",
+                    label: tl("Copy Full File Name (Shell Quoted)"),
                     click: () => fireAndForget(() => navigator.clipboard.writeText(shellQuote([finfo.path]))),
                 },
             ];
@@ -413,20 +424,20 @@ function TableBody({
                     type: "separator",
                 },
                 {
-                    label: "Default Settings",
-                    submenu: makeDirectoryDefaultMenuItems(model),
+                    label: tl("Default Settings"),
+                    submenu: makeDirectoryDefaultMenuItems(model, locale),
                 },
                 {
                     type: "separator",
                 },
                 {
-                    label: "Delete",
-                    click: () => handleFileDelete(model, finfo.path, false, setErrorMsg),
+                    label: tl("Delete"),
+                    click: () => handleFileDelete(model, finfo.path, false, setErrorMsg, locale),
                 }
             );
             ContextMenuModel.getInstance().showContextMenu(menu, e);
         },
-        [setRefreshVersion, conn]
+        [tl, conn, model, table, setErrorMsg, locale]
     );
 
     const allRows = table.getRowModel().flatRows;
@@ -437,7 +448,11 @@ function TableBody({
         <div className="dir-table-body" ref={bodyRef}>
             {(searchActive || search !== "") && (
                 <div className="flex rounded-[3px] py-1 px-2 bg-warning text-black" ref={warningBoxRef}>
-                    <span>{search === "" ? "Type to search (Esc to cancel)" : `Searching for "${search}"`}</span>
+                    <span>
+                        {search === ""
+                            ? tl("Type to search (Esc to cancel)")
+                            : tl('Searching for "{search}"', { search })}
+                    </span>
                     <div
                         className="ml-auto bg-transparent flex justify-center items-center flex-col p-0.5 rounded-md hover:bg-hoverbg focus:bg-hoverbg focus-within:bg-hoverbg cursor-pointer"
                         onClick={() => {
@@ -553,7 +568,8 @@ function TableRow({ model, row, focusIndex, setFocusIndex, setSearch, idx, handl
 
 const MemoizedTableBody = React.memo(
     TableBody,
-    (prev, next) => prev.table.options.data == next.table.options.data
+    (prev, next) =>
+        prev.table.options.data == next.table.options.data && prev.locale === next.locale
 ) as typeof TableBody;
 
 interface DirectoryPreviewProps {
@@ -561,6 +577,7 @@ interface DirectoryPreviewProps {
 }
 
 function DirectoryPreview({ model }: DirectoryPreviewProps) {
+    const locale = useLocale();
     const env = useWaveEnv<PreviewEnv>();
     const [searchText, setSearchText] = useState("");
     const [focusIndex, setFocusIndex] = useState(0);
@@ -607,13 +624,13 @@ function DirectoryPreview({ model }: DirectoryPreviewProps) {
                 } catch (e) {
                     console.error("Directory Read Error", e);
                     setErrorMsg({
-                        status: "Cannot Read Directory",
+                        status: t("Cannot Read Directory", undefined, locale),
                         text: `${e}`,
                     });
                 }
                 setUnfilteredData(entries);
             }),
-        [conn, dirPath, refreshVersion]
+        [conn, dirPath, refreshVersion, locale]
     );
 
     const filteredData = useMemo(
@@ -722,19 +739,23 @@ function DirectoryPreview({ model }: DirectoryPreviewProps) {
                 let errorMsg: ErrorMsg;
                 if (allowRetry) {
                     errorMsg = {
-                        status: "Confirm Overwrite File(s)",
-                        text: "This copy operation will overwrite an existing file. Would you like to continue?",
+                        status: t("Confirm Overwrite File(s)", undefined, locale),
+                        text: t(
+                            "This copy operation will overwrite an existing file. Would you like to continue?",
+                            undefined,
+                            locale
+                        ),
                         level: "warning",
                         buttons: [
                             {
-                                text: "Delete Then Copy",
+                                text: t("Delete Then Copy", undefined, locale),
                                 onClick: async () => {
                                     data.opts.overwrite = true;
                                     await handleDropCopy(data, isDir);
                                 },
                             },
                             {
-                                text: "Sync",
+                                text: t("Sync", undefined, locale),
                                 onClick: async () => {
                                     data.opts.merge = true;
                                     await handleDropCopy(data, isDir);
@@ -744,7 +765,7 @@ function DirectoryPreview({ model }: DirectoryPreviewProps) {
                     };
                 } else {
                     errorMsg = {
-                        status: "Copy Failed",
+                        status: t("Copy Failed", undefined, locale),
                         text: copyError,
                         level: "error",
                     };
@@ -753,7 +774,7 @@ function DirectoryPreview({ model }: DirectoryPreviewProps) {
             }
             model.refreshCallback();
         },
-        [model.refreshCallback]
+        [model.refreshCallback, locale]
     );
 
     const [, drop] = useDrop(
@@ -838,15 +859,16 @@ function DirectoryPreview({ model }: DirectoryPreviewProps) {
         (e: any) => {
             e.preventDefault();
             e.stopPropagation();
+            const tl = (key: string) => t(key, undefined, locale);
             const menu: ContextMenuItem[] = [
                 {
-                    label: "New File",
+                    label: tl("New File"),
                     click: () => {
                         newFile();
                     },
                 },
                 {
-                    label: "New Folder",
+                    label: tl("New Folder"),
                     click: () => {
                         newDirectory();
                     },
@@ -859,7 +881,7 @@ function DirectoryPreview({ model }: DirectoryPreviewProps) {
 
             ContextMenuModel.getInstance().showContextMenu(menu, e);
         },
-        [setRefreshVersion, conn, newFile, newDirectory, dirPath]
+        [setRefreshVersion, conn, newFile, newDirectory, dirPath, locale]
     );
 
     return (

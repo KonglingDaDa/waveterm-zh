@@ -1,6 +1,7 @@
 // Copyright 2025, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+import { useT } from "@/app/i18n/react";
 import { atoms } from "@/app/store/global";
 import { isBlank, makeIconClass } from "@/util/util";
 import { offset, useFloating } from "@floating-ui/react";
@@ -150,17 +151,19 @@ function BlockHeaderSuggestionControl(props: BlockHeaderSuggestionControlProps) 
  * If no children are provided to SuggestionControl, this default empty state will be used.
  */
 function SuggestionControlNoResults({ children }: { children?: React.ReactNode }) {
+    const tt = useT();
     return (
         <div className="flex items-center justify-center min-h-[120px] p-4">
-            {children ?? <span className="text-gray-500">No Suggestions</span>}
+            {children ?? <span className="text-gray-500">{tt("No Suggestions")}</span>}
         </div>
     );
 }
 
 function SuggestionControlNoData({ children }: { children?: React.ReactNode }) {
+    const tt = useT();
     return (
         <div className="flex items-center justify-center min-h-[120px] p-4">
-            {children ?? <span className="text-gray-500">No Suggestions</span>}
+            {children ?? <span className="text-gray-500">{tt("No Suggestions")}</span>}
         </div>
     );
 }

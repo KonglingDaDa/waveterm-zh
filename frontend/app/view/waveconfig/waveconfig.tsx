@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Tooltip } from "@/app/element/tooltip";
+import { formatConfigErrorLine } from "@/app/view/waveconfig/waveconfig-files";
+import { useLocale, useT } from "@/app/i18n/react";
 import { globalStore } from "@/app/store/jotaiStore";
 import { tryReinjectKey } from "@/app/store/keymodel";
 import { CodeEditor } from "@/app/view/codeeditor/codeeditor";
@@ -19,10 +21,11 @@ interface ConfigSidebarProps {
 }
 
 const ConfigSidebar = memo(({ model }: ConfigSidebarProps) => {
+    const tt = useT();
     const selectedFile = useAtomValue(model.selectedFileAtom);
     const setIsMenuOpen = useSetAtom(model.isMenuOpenAtom);
-    const configFiles = model.getConfigFiles();
-    const deprecatedConfigFiles = model.getDeprecatedConfigFiles();
+    const configFiles = useAtomValue(model.configFilesAtom);
+    const deprecatedConfigFiles = useAtomValue(model.deprecatedConfigFilesAtom);
     const configErrorFiles = useAtomValue(model.configErrorFilesAtom);
 
     const handleFileSelect = (file: ConfigFile) => {
@@ -35,7 +38,7 @@ const ConfigSidebar = memo(({ model }: ConfigSidebarProps) => {
     return (
         <div className="flex flex-col w-48 border-r border-border @w600:h-full @max-w600:absolute @max-w600:left-0.5 @max-w600:top-0 @max-w600:bottom-0.5 @max-w600:z-10 @max-w600:bg-background @max-w600:shadow-xl @max-w600:rounded-bl">
             <div className="flex items-center justify-between px-4 py-2 border-b border-border @w600:hidden">
-                <span className="font-semibold">Config Files</span>
+                <span className="font-semibold">{tt("Config Files")}</span>
                 <button
                     onClick={() => setIsMenuOpen(false)}
                     className="hover:bg-secondary/50 rounded p-1 cursor-pointer transition-colors"
@@ -83,7 +86,7 @@ const ConfigSidebar = memo(({ model }: ConfigSidebarProps) => {
                                             : "text-muted-foreground/70 bg-secondary/30"
                                     }`}
                                 >
-                                    deprecated
+                                    {tt("deprecated")}
                                 </span>
                                 {configErrorFiles.has(file.path) && (
                                     <i className="fa fa-solid fa-circle-exclamation text-error text-[14px] ml-auto shrink-0" />
@@ -100,8 +103,11 @@ const ConfigSidebar = memo(({ model }: ConfigSidebarProps) => {
 ConfigSidebar.displayName = "ConfigSidebar";
 
 const WaveConfigView = memo(({ blockId, model }: ViewComponentProps<WaveConfigViewModel>) => {
+    const tt = useT();
+    const locale = useLocale();
     const env = useWaveEnv<WaveConfigEnv>();
     const selectedFile = useAtomValue(model.selectedFileAtom);
+    const selectedFileDisplay = useAtomValue(model.selectedFileDisplayAtom);
     const [fileContent, setFileContent] = useAtom(model.fileContentAtom);
     const isLoading = useAtomValue(model.isLoadingAtom);
     const isSaving = useAtomValue(model.isSavingAtom);
@@ -161,7 +167,7 @@ const WaveConfigView = memo(({ blockId, model }: ViewComponentProps<WaveConfigVi
         return () => window.removeEventListener("keydown", handleKeyDown);
     }, [hasChanges, isSaving, model]);
 
-    const saveTooltip = `Save (${model.saveShortcut})`;
+    const saveTooltip = tt("Save ({shortcut})", { shortcut: model.saveShortcut });
 
     return (
         <div className="@container flex flex-col w-full h-full">
@@ -187,10 +193,10 @@ const WaveConfigView = memo(({ blockId, model }: ViewComponentProps<WaveConfigVi
                                         <i className="fa fa-bars" />
                                     </button>
                                     <div className="text-lg font-semibold whitespace-nowrap shrink-0">
-                                        {selectedFile.name}
+                                        {selectedFileDisplay?.name ?? selectedFile.name}
                                     </div>
                                     {selectedFile.docsUrl && (
-                                        <Tooltip content="View documentation">
+                                        <Tooltip content={tt("View documentation")}>
                                             <a
                                                 href={`${selectedFile.docsUrl}?ref=waveconfig`}
                                                 target="_blank"
@@ -210,7 +216,7 @@ const WaveConfigView = memo(({ blockId, model }: ViewComponentProps<WaveConfigVi
                                         <>
                                             {hasChanges && (
                                                 <span className="text-xs text-warning pb-0.5 @max-w450:hidden">
-                                                    Unsaved changes
+                                                    {tt("Unsaved changes")}
                                                 </span>
                                             )}
                                             <Tooltip content={saveTooltip} placement="bottom" divClassName="shrink-0">
@@ -223,7 +229,7 @@ const WaveConfigView = memo(({ blockId, model }: ViewComponentProps<WaveConfigVi
                                                             : "bg-accent/80 text-primary hover:bg-accent cursor-pointer"
                                                     }`}
                                                 >
-                                                    {isSaving ? "Saving..." : "Save"}
+                                                    {isSaving ? tt("Saving...") : tt("Save")}
                                                 </button>
                                             </Tooltip>
                                         </>
@@ -245,7 +251,7 @@ const WaveConfigView = memo(({ blockId, model }: ViewComponentProps<WaveConfigVi
                                                 : "bg-transparent hover:bg-hover"
                                         )}
                                     >
-                                        Visual
+                                        {tt("Visual")}
                                     </button>
                                     {/* No guard needed: visual tab saves changes immediately via RPC */}
                                     <button
@@ -257,7 +263,7 @@ const WaveConfigView = memo(({ blockId, model }: ViewComponentProps<WaveConfigVi
                                                 : "bg-transparent hover:bg-hover"
                                         )}
                                     >
-                                        Raw JSON
+                                        {tt("Raw JSON")}
                                     </button>
                                 </div>
                             )}
@@ -286,7 +292,7 @@ const WaveConfigView = memo(({ blockId, model }: ViewComponentProps<WaveConfigVi
                             <div className="flex-1 min-h-0">
                                 {isLoading ? (
                                     <div className="flex items-center justify-center h-full text-muted-foreground">
-                                        Loading...
+                                        {tt("Loading...")}
                                     </div>
                                 ) : selectedFile.visualComponent &&
                                   (!selectedFile.hasJsonView || activeTab === "visual") ? (
@@ -314,8 +320,7 @@ const WaveConfigView = memo(({ blockId, model }: ViewComponentProps<WaveConfigVi
                 <div className="bg-error text-primary px-4 py-1 max-h-12 overflow-y-auto border-t border-error/50 shrink-0">
                     {configErrors.map((cerr, i) => (
                         <div key={i} className="text-sm">
-                            <span className="font-semibold">Config Error: </span>
-                            {cerr.file}: {cerr.err}
+                            {formatConfigErrorLine(cerr, locale)}
                         </div>
                     ))}
                 </div>

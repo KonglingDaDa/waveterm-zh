@@ -30,6 +30,7 @@ import "overlayscrollbars/overlayscrollbars.css";
 import { useEffect, useRef } from "react";
 import { DndProvider } from "react-dnd";
 import { HTML5Backend } from "react-dnd-html5-backend";
+import { LocaleProvider, useT } from "@/app/i18n/react";
 import { AppBackground } from "./app-bg";
 import { CenteredDiv } from "./element/quickelems";
 
@@ -101,41 +102,7 @@ async function getClipboardURL(): Promise<URL> {
     }
 }
 
-async function handleContextMenu(e: React.MouseEvent<HTMLDivElement>) {
-    e.preventDefault();
-    const canPaste = canEnablePaste();
-    const canCopy = canEnableCopy();
-    const canCut = canEnableCut();
-    const clipboardURL = await getClipboardURL();
-    if (!canPaste && !canCopy && !canCut && !clipboardURL) {
-        return;
-    }
-    const menu: ContextMenuItem[] = [];
-    if (canCut) {
-        menu.push({ label: "Cut", role: "cut" });
-    }
-    if (canCopy) {
-        menu.push({ label: "Copy", role: "copy" });
-    }
-    if (canPaste) {
-        menu.push({ label: "Paste", role: "paste" });
-    }
-    if (clipboardURL) {
-        menu.push({ type: "separator" });
-        menu.push({
-            label: "Open Clipboard URL (" + clipboardURL.hostname + ")",
-            click: () => {
-                createBlock({
-                    meta: {
-                        view: "web",
-                        url: clipboardURL.toString(),
-                    },
-                });
-            },
-        });
-    }
-    ContextMenuModel.getInstance().showContextMenu(menu, e);
-}
+
 
 function AppSettingsUpdater() {
     const windowSettingsAtom = getSettingsPrefixAtom("window");
@@ -355,10 +322,55 @@ const BadgeAutoClearing = () => {
 };
 
 const AppInner = () => {
+    return (
+        <LocaleProvider>
+            <AppInnerContent />
+        </LocaleProvider>
+    );
+};
+
+function AppInnerContent() {
+    const tt = useT();
     const prefersReducedMotion = useAtomValue(atoms.prefersReducedMotionAtom);
     const client = useAtomValue(ClientModel.getInstance().clientAtom);
     const windowData = useAtomValue(GlobalModel.getInstance().windowDataAtom);
     const isFullScreen = useAtomValue(atoms.isFullScreen);
+
+    async function handleContextMenu(e: React.MouseEvent<HTMLDivElement>) {
+        e.preventDefault();
+        const canPaste = canEnablePaste();
+        const canCopy = canEnableCopy();
+        const canCut = canEnableCut();
+        const clipboardURL = await getClipboardURL();
+        if (!canPaste && !canCopy && !canCut && !clipboardURL) {
+            return;
+        }
+        const menu: ContextMenuItem[] = [];
+        if (canCut) {
+            menu.push({ label: tt("Cut"), role: "cut" });
+        }
+        if (canCopy) {
+            menu.push({ label: tt("Copy"), role: "copy" });
+        }
+        if (canPaste) {
+            menu.push({ label: tt("Paste"), role: "paste" });
+        }
+        if (clipboardURL) {
+            menu.push({ type: "separator" });
+            menu.push({
+                label: tt("Open Clipboard URL ({host})", { host: clipboardURL.hostname }),
+                click: () => {
+                    createBlock({
+                        meta: {
+                            view: "web",
+                            url: clipboardURL.toString(),
+                        },
+                    });
+                },
+            });
+        }
+        ContextMenuModel.getInstance().showContextMenu(menu, e);
+    }
 
     if (client == null || windowData == null) {
         return (
@@ -388,6 +400,6 @@ const AppInner = () => {
             </DndProvider>
         </div>
     );
-};
+}
 
 export { App };

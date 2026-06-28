@@ -2,6 +2,17 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { computeConnColorNum } from "@/app/block/blockutil";
+import type { Locale } from "@/app/i18n";
+import {
+    connectPlaceholder,
+    connectionSectionLocal,
+    connectionSectionRemote,
+    disconnectLabel,
+    editConnectionsLabel,
+    newConnectionLabel,
+    reconnectLabel,
+} from "@/app/i18n/connection-ui";
+import { useLocale } from "@/app/i18n/react";
 import { TypeAheadModal } from "@/app/modals/typeaheadmodal";
 import { ConnectionsModel } from "@/app/store/connections-model";
 import {
@@ -117,7 +128,8 @@ function getReconnectItem(
     connStatus: ConnStatus,
     connSelected: string,
     blockId: string,
-    changeConnModalAtom: jotai.PrimitiveAtom<boolean>
+    changeConnModalAtom: jotai.PrimitiveAtom<boolean>,
+    locale: Locale
 ): SuggestionConnectionItem | null {
     if (connSelected != "" || (connStatus.status != "disconnected" && connStatus.status != "error")) {
         return null;
@@ -126,7 +138,7 @@ function getReconnectItem(
         status: "connected",
         icon: "arrow-right-arrow-left",
         iconColor: "var(--grey-text-color)",
-        label: `Reconnect to ${connStatus.connection}`,
+        label: reconnectLabel(connStatus.connection, locale),
         value: "",
         onSelect: async (_: string) => {
             globalStore.set(changeConnModalAtom, false);
@@ -149,7 +161,8 @@ function getLocalSuggestions(
     connStatusMap: Map<string, ConnStatus>,
     fullConfig: FullConfigType,
     filterOutNowsh: boolean,
-    hasGitBash: boolean
+    hasGitBash: boolean,
+    locale: Locale
 ): SuggestionConnectionScope | null {
     const wslFiltered = filterConnections(connList, connSelected, fullConfig, filterOutNowsh);
     const wslSuggestionItems = createWslSuggestionItems(wslFiltered, connection, connStatusMap);
@@ -173,7 +186,7 @@ function getLocalSuggestions(
         return null;
     }
     const localSuggestions: SuggestionConnectionScope = {
-        headerText: "Local",
+        headerText: connectionSectionLocal(locale),
         items: sortedSuggestionItems,
     };
     return localSuggestions;
@@ -185,7 +198,8 @@ function getRemoteSuggestions(
     connSelected: string,
     connStatusMap: Map<string, ConnStatus>,
     fullConfig: FullConfigType,
-    filterOutNowsh: boolean
+    filterOutNowsh: boolean,
+    locale: Locale
 ): SuggestionConnectionScope | null {
     const filtered = filterConnections(connList, connSelected, fullConfig, filterOutNowsh);
     const suggestionItems = createRemoteSuggestionItems(filtered, connection, connStatusMap);
@@ -194,7 +208,7 @@ function getRemoteSuggestions(
         return null;
     }
     const remoteSuggestions: SuggestionConnectionScope = {
-        headerText: "Remote",
+        headerText: connectionSectionRemote(locale),
         items: sortedSuggestionItems,
     };
     return remoteSuggestions;
@@ -203,7 +217,8 @@ function getRemoteSuggestions(
 function getDisconnectItem(
     connection: string,
     connStatusMap: Map<string, ConnStatus>,
-    changeConnModalAtom: jotai.PrimitiveAtom<boolean>
+    changeConnModalAtom: jotai.PrimitiveAtom<boolean>,
+    locale: Locale
 ): SuggestionConnectionItem | null {
     if (util.isLocalConnName(connection)) {
         return null;
@@ -216,7 +231,7 @@ function getDisconnectItem(
         status: "connected",
         icon: "xmark",
         iconColor: "var(--grey-text-color)",
-        label: `Disconnect ${connStatus.connection}`,
+        label: disconnectLabel(connStatus.connection, locale),
         value: "",
         onSelect: async (_: string) => {
             globalStore.set(changeConnModalAtom, false);
@@ -229,7 +244,8 @@ function getDisconnectItem(
 
 function getConnectionsEditItem(
     changeConnModalAtom: jotai.PrimitiveAtom<boolean>,
-    connSelected: string
+    connSelected: string,
+    locale: Locale
 ): SuggestionConnectionItem | null {
     if (connSelected != "") {
         return null;
@@ -239,7 +255,7 @@ function getConnectionsEditItem(
         icon: "gear",
         iconColor: "var(--grey-text-color)",
         value: "Edit Connections",
-        label: "Edit Connections",
+        label: editConnectionsLabel(locale),
         onSelect: () => {
             util.fireAndForget(async () => {
                 globalStore.set(changeConnModalAtom, false);
@@ -262,7 +278,8 @@ function getNewConnectionSuggestionItem(
     remoteConns: Array<string>,
     wslConns: Array<string>,
     changeConnection: (connName: string) => Promise<void>,
-    changeConnModalAtom: jotai.PrimitiveAtom<boolean>
+    changeConnModalAtom: jotai.PrimitiveAtom<boolean>,
+    locale: Locale
 ): SuggestionConnectionItem | null {
     const allCons = ["", localName, ...remoteConns, ...wslConns];
     if (allCons.includes(connSelected)) {
@@ -274,7 +291,7 @@ function getNewConnectionSuggestionItem(
         status: "connected",
         icon: "plus",
         iconColor: "var(--grey-text-color)",
-        label: `${connSelected} (New Connection)`,
+        label: newConnectionLabel(connSelected, locale),
         value: "",
         onSelect: (_: string) => {
             changeConnection(connSelected);
@@ -316,6 +333,7 @@ const ChangeConnectionBlockModal = React.memo(
         let filterOutNowsh = util.useAtomValueSafe(viewModel.filterOutNowsh) ?? true;
         const hasGitBash = jotai.useAtomValue(ConnectionsModel.getInstance().hasGitBashAtom);
         const localName = jotai.useAtomValue(getLocalHostDisplayNameAtom());
+        const locale = useLocale();
 
         let maxActiveConnNum = 1;
         for (const conn of allConnStatus) {
@@ -375,7 +393,7 @@ const ChangeConnectionBlockModal = React.memo(
             [blockId, blockData]
         );
 
-        const reconnectSuggestionItem = getReconnectItem(connStatus, connSelected, blockId, changeConnModalAtom);
+        const reconnectSuggestionItem = getReconnectItem(connStatus, connSelected, blockId, changeConnModalAtom, locale);
         const localSuggestions = getLocalSuggestions(
             localName,
             wslList,
@@ -384,7 +402,8 @@ const ChangeConnectionBlockModal = React.memo(
             connStatusMap,
             fullConfig,
             filterOutNowsh,
-            hasGitBash
+            hasGitBash,
+            locale
         );
         const remoteSuggestions = getRemoteSuggestions(
             connList,
@@ -392,17 +411,19 @@ const ChangeConnectionBlockModal = React.memo(
             connSelected,
             connStatusMap,
             fullConfig,
-            filterOutNowsh
+            filterOutNowsh,
+            locale
         );
-        const connectionsEditItem = getConnectionsEditItem(changeConnModalAtom, connSelected);
-        const disconnectItem = getDisconnectItem(connection, connStatusMap, changeConnModalAtom);
+        const connectionsEditItem = getConnectionsEditItem(changeConnModalAtom, connSelected, locale);
+        const disconnectItem = getDisconnectItem(connection, connStatusMap, changeConnModalAtom, locale);
         const newConnectionSuggestionItem = getNewConnectionSuggestionItem(
             connSelected,
             localName,
             connList,
             wslList,
             changeConnection,
-            changeConnModalAtom
+            changeConnModalAtom,
+            locale
         );
 
         const suggestions: Array<SuggestionsType> = [
@@ -486,7 +507,7 @@ const ChangeConnectionBlockModal = React.memo(
                 onKeyDown={(e) => keyutil.keydownWrapper(handleTypeAheadKeyDown)(e)}
                 onChange={(current: string) => setConnSelected(current)}
                 value={connSelected}
-                label="Connect to (username@host)..."
+                label={connectPlaceholder(locale)}
                 onClickBackdrop={() => globalStore.set(changeConnModalAtom, false)}
             />
         );

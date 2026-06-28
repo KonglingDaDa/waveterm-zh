@@ -1,6 +1,8 @@
 // Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+import { localizeBackgroundName } from "@/app/i18n/display-names";
+import { t, type Locale } from "@/app/i18n";
 import { getOrefMetaKeyAtom, globalStore, recordTEvent } from "@/app/store/global";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { fireAndForget } from "@/util/util";
@@ -17,36 +19,41 @@ const FlagColors: { label: string; value: string }[] = [
     { label: "Yellow", value: "#FFE900" },
 ];
 
-export function buildTabBarContextMenu(env: TabEnv): ContextMenuItem[] {
+function tt(key: string, locale: Locale, params?: Record<string, string | number>): string {
+    return t(key, params, locale);
+}
+
+export function buildTabBarContextMenu(env: TabEnv, locale: Locale): ContextMenuItem[] {
     const currentTabBar = globalStore.get(env.getSettingsKeyAtom("app:tabbar")) ?? "top";
     const tabBarSubmenu: ContextMenuItem[] = [
         {
-            label: "Top",
+            label: tt("Top", locale),
             type: "checkbox",
             checked: currentTabBar === "top",
             click: () => fireAndForget(() => env.rpc.SetConfigCommand(TabRpcClient, { "app:tabbar": "top" })),
         },
         {
-            label: "Left",
+            label: tt("Left", locale),
             type: "checkbox",
             checked: currentTabBar === "left",
             click: () => fireAndForget(() => env.rpc.SetConfigCommand(TabRpcClient, { "app:tabbar": "left" })),
         },
     ];
-    return [{ label: "Tab Bar Position", type: "submenu", submenu: tabBarSubmenu }];
+    return [{ label: tt("Tab Bar Position", locale), type: "submenu", submenu: tabBarSubmenu }];
 }
 
 export function buildTabContextMenu(
     id: string,
     renameRef: React.RefObject<(() => void) | null>,
     onClose: (event: React.MouseEvent<HTMLButtonElement, MouseEvent> | null) => void,
-    env: TabEnv
+    env: TabEnv,
+    locale: Locale
 ): ContextMenuItem[] {
     const menu: ContextMenuItem[] = [];
     menu.push(
-        { label: "Rename Tab", click: () => renameRef.current?.() },
+        { label: tt("Rename Tab", locale), click: () => renameRef.current?.() },
         {
-            label: "Copy TabId",
+            label: tt("Copy TabId", locale),
             click: () => fireAndForget(() => navigator.clipboard.writeText(id)),
         },
         { type: "separator" }
@@ -55,7 +62,7 @@ export function buildTabContextMenu(
     const currentFlagColor = globalStore.get(getOrefMetaKeyAtom(tabORef, "tab:flagcolor")) ?? null;
     const flagSubmenu: ContextMenuItem[] = [
         {
-            label: "None",
+            label: tt("None", locale),
             type: "checkbox",
             checked: currentFlagColor == null,
             click: () =>
@@ -64,7 +71,7 @@ export function buildTabContextMenu(
                 ),
         },
         ...FlagColors.map((fc) => ({
-            label: fc.label,
+            label: tt(fc.label, locale),
             type: "checkbox" as const,
             checked: currentFlagColor === fc.value,
             click: () =>
@@ -73,7 +80,7 @@ export function buildTabContextMenu(
                 ),
         })),
     ];
-    menu.push({ label: "Flag Tab", type: "submenu", submenu: flagSubmenu }, { type: "separator" });
+    menu.push({ label: tt("Flag Tab", locale), type: "submenu", submenu: flagSubmenu }, { type: "separator" });
     const fullConfig = globalStore.get(env.atoms.fullConfigAtom);
     const backgrounds = fullConfig?.backgrounds ?? {};
     const bgKeys = Object.keys(backgrounds).filter((k) => backgrounds[k] != null);
@@ -86,7 +93,7 @@ export function buildTabContextMenu(
         const submenu: ContextMenuItem[] = [];
         const oref = makeORef("tab", id);
         submenu.push({
-            label: "Default",
+            label: tt("Default", locale),
             click: () =>
                 fireAndForget(async () => {
                     await env.rpc.SetMetaCommand(TabRpcClient, {
@@ -100,7 +107,7 @@ export function buildTabContextMenu(
         for (const bgKey of bgKeys) {
             const bg = backgrounds[bgKey];
             submenu.push({
-                label: bg["display:name"] ?? bgKey,
+                label: localizeBackgroundName(bgKey, bg["display:name"] ?? bgKey, locale),
                 click: () =>
                     fireAndForget(async () => {
                         await env.rpc.SetMetaCommand(TabRpcClient, {
@@ -112,9 +119,9 @@ export function buildTabContextMenu(
                     }),
             });
         }
-        menu.push({ label: "Backgrounds", type: "submenu", submenu }, { type: "separator" });
+        menu.push({ label: tt("Backgrounds", locale), type: "submenu", submenu }, { type: "separator" });
     }
-    menu.push(...buildTabBarContextMenu(env), { type: "separator" });
-    menu.push({ label: "Close Tab", click: () => onClose(null) });
+    menu.push(...buildTabBarContextMenu(env, locale), { type: "separator" });
+    menu.push({ label: tt("Close Tab", locale), click: () => onClose(null) });
     return menu;
 }

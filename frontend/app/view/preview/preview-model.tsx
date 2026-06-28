@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { BlockNodeModel } from "@/app/block/blocktypes";
+import { t } from "@/app/i18n";
+import { atoms } from "@/app/store/global-atoms";
 import { ContextMenuModel } from "@/app/store/contextmenu";
 import { globalStore } from "@/app/store/jotaiStore";
 import type { TabModel } from "@/app/store/tab-model";
@@ -20,6 +22,15 @@ import type * as MonacoTypes from "monaco-editor";
 import { createRef } from "react";
 import { PreviewView } from "./preview";
 import { makeDirectoryDefaultMenuItems } from "./preview-directory-utils";
+import {
+    formatPreviewConnectionError,
+    formatPreviewFileNotFound,
+    formatPreviewLoadError,
+    formatPreviewMimetypeError,
+    formatPreviewMimeTypePreview,
+    makeBookmarkMenuLabel,
+    makeDefaultFontSizeLabel,
+} from "./preview-ui";
 import type { PreviewEnv } from "./previewenv";
 
 // TODO drive this using config
@@ -208,8 +219,9 @@ export class PreviewModel implements ViewModel {
                     elemtype: "iconbutton",
                     icon: "folder-open",
                     longClick: (e: React.MouseEvent<any>) => {
+                        const locale = get(atoms.localeAtom);
                         const menuItems: ContextMenuItem[] = BOOKMARKS.map((bookmark) => ({
-                            label: `Go to ${bookmark.label} (${bookmark.path})`,
+                            label: makeBookmarkMenuLabel(bookmark.label, bookmark.path, locale),
                             click: () => this.goHistory(bookmark.path),
                         }));
                         ContextMenuModel.getInstance().showContextMenu(menuItems, e);
@@ -222,9 +234,11 @@ export class PreviewModel implements ViewModel {
             const blockData = get(this.blockAtom);
             return blockData?.meta?.edit ?? false;
         });
-        this.viewName = atom("Preview");
+        this.viewName = atom((get) => t("Preview", undefined, get(atoms.localeAtom)));
         this.hideViewName = atom(true);
         this.viewText = atom((get) => {
+            const locale = get(atoms.localeAtom);
+            const tl = (key: string) => t(key, undefined, locale);
             let headerPath = get(this.metaFilePath);
             const connStatus = get(this.connStatus);
             if (connStatus?.status != "connected") {
@@ -266,21 +280,21 @@ export class PreviewModel implements ViewModel {
                 if (fileInfo.state != "hasData") {
                     viewTextChildren.push({
                         elemtype: "textbutton",
-                        text: "Loading ...",
+                        text: tl("Loading ..."),
                         className: clsx(`grey rounded-[4px] !py-[2px] !px-[10px] text-[11px] font-[500]`),
                         onClick: () => {},
                     });
                 } else if (fileInfo.data.readonly) {
                     viewTextChildren.push({
                         elemtype: "textbutton",
-                        text: "Read Only",
+                        text: tl("Read Only"),
                         className: clsx(`yellow rounded-[4px] !py-[2px] !px-[10px] text-[11px] font-[500]`),
                         onClick: () => {},
                     });
                 } else {
                     viewTextChildren.push({
                         elemtype: "textbutton",
-                        text: "Save",
+                        text: tl("Save"),
                         className: clsx(`${saveClassName} rounded-[4px] !py-[2px] !px-[10px] text-[11px] font-[500]`),
                         onClick: () => fireAndForget(this.handleFileSave.bind(this)),
                     });
@@ -288,7 +302,7 @@ export class PreviewModel implements ViewModel {
                 if (get(this.canPreview)) {
                     viewTextChildren.push({
                         elemtype: "textbutton",
-                        text: "Preview",
+                        text: tl("Preview"),
                         className: "grey rounded-[4px] !py-[2px] !px-[10px] text-[11px] font-[500]",
                         onClick: () => fireAndForget(() => this.setEditMode(false)),
                     });
@@ -296,7 +310,7 @@ export class PreviewModel implements ViewModel {
             } else if (get(this.canPreview)) {
                 viewTextChildren.push({
                     elemtype: "textbutton",
-                    text: "Edit",
+                    text: tl("Edit"),
                     className: "grey rounded-[4px] !py-[2px] !px-[10px] text-[11px] font-[500]",
                     onClick: () => fireAndForget(() => this.setEditMode(true)),
                 });
@@ -325,6 +339,8 @@ export class PreviewModel implements ViewModel {
             };
         });
         this.endIconButtons = atom((get) => {
+            const locale = get(atoms.localeAtom);
+            const tl = (key: string) => t(key, undefined, locale);
             const connStatus = get(this.connStatus);
             if (connStatus?.status != "connected") {
                 return null;
@@ -338,7 +354,7 @@ export class PreviewModel implements ViewModel {
                     {
                         elemtype: "iconbutton",
                         icon: showHiddenFiles ? "eye" : "eye-slash",
-                        title: showHiddenFiles ? "Hide Hidden Files" : "Show Hidden Files",
+                        title: showHiddenFiles ? tl("Hide Hidden Files") : tl("Show Hidden Files"),
                         click: () => {
                             globalStore.set(this.showHiddenFiles, (prev) => !prev);
                         },
@@ -354,13 +370,13 @@ export class PreviewModel implements ViewModel {
                     {
                         elemtype: "iconbutton",
                         icon: "book",
-                        title: "Table of Contents",
+                        title: tl("Table of Contents"),
                         click: () => this.markdownShowTocToggle(),
                     },
                     {
                         elemtype: "iconbutton",
                         icon: "arrows-rotate",
-                        title: "Refresh",
+                        title: tl("Refresh"),
                         click: () => this.refreshCallback?.(),
                     },
                 ] as IconButtonDecl[];
@@ -370,7 +386,7 @@ export class PreviewModel implements ViewModel {
                     {
                         elemtype: "iconbutton",
                         icon: "arrows-rotate",
-                        title: "Refresh",
+                        title: tl("Refresh"),
                         click: () => this.refreshCallback?.(),
                     },
                 ] as IconButtonDecl[];
@@ -415,11 +431,11 @@ export class PreviewModel implements ViewModel {
                 });
                 return statFile;
             } catch (e) {
-                const errorStatus: ErrorMsg = {
-                    status: "File Read Failed",
+                const locale = get(atoms.localeAtom);
+                globalStore.set(this.errorMsgAtom, {
+                    status: t("File Read Failed", undefined, locale),
                     text: `${e}`,
-                };
-                globalStore.set(this.errorMsgAtom, errorStatus);
+                });
             }
         });
         this.fileMimeType = atom<Promise<string>>(async (get) => {
@@ -445,11 +461,11 @@ export class PreviewModel implements ViewModel {
                 });
                 return file;
             } catch (e) {
-                const errorStatus: ErrorMsg = {
-                    status: "File Read Failed",
+                const locale = get(atoms.localeAtom);
+                globalStore.set(this.errorMsgAtom, {
+                    status: t("File Read Failed", undefined, locale),
                     text: `${e}`,
-                };
-                globalStore.set(this.errorMsgAtom, errorStatus);
+                });
             }
         });
 
@@ -476,6 +492,7 @@ export class PreviewModel implements ViewModel {
         this.fileContent = fileContentAtom;
 
         this.specializedView = atom<Promise<{ specializedView?: string; errorStr?: string }>>(async (get) => {
+            get(atoms.localeAtom);
             return this.getSpecializedView(get);
         });
         this.loadableSpecializedView = loadable(this.specializedView);
@@ -500,6 +517,7 @@ export class PreviewModel implements ViewModel {
     }
 
     async getSpecializedView(getFn: Getter): Promise<{ specializedView?: string; errorStr?: string }> {
+        const locale = getFn(atoms.localeAtom);
         const mimeType = await getFn(this.fileMimeType);
         const fileInfo = await getFn(this.statFile);
         const fileName = fileInfo?.name;
@@ -508,29 +526,28 @@ export class PreviewModel implements ViewModel {
         const genErr = getFn(this.errorMsgAtom);
 
         if (!fileInfo) {
-            return { errorStr: `Load Error: ${genErr?.text}` };
+            return { errorStr: formatPreviewLoadError(genErr?.text, locale) };
         }
         if (connErr != "") {
-            return { errorStr: `Connection Error: ${connErr}` };
+            return { errorStr: formatPreviewConnectionError(connErr, locale) };
         }
         if (fileInfo?.notfound) {
             return { specializedView: "codeedit" };
         }
         if (mimeType == null) {
-            return { errorStr: `Unable to determine mimetype for: ${fileInfo.path}` };
+            return { errorStr: formatPreviewMimetypeError(fileInfo.path, locale) };
         }
         if (isStreamingType(mimeType)) {
             return { specializedView: "streaming" };
         }
         if (!fileInfo) {
-            const fileNameStr = fileName ? " " + JSON.stringify(fileName) : "";
-            return { errorStr: "File Not Found" + fileNameStr };
+            return { errorStr: formatPreviewFileNotFound(fileName, locale) };
         }
         if (fileInfo.size > MaxFileSize) {
-            return { errorStr: "File Too Large to Preview (10 MB Max)" };
+            return { errorStr: t("File Too Large to Preview (10 MB Max)", undefined, locale) };
         }
         if (mimeType == "text/csv" && fileInfo.size > MaxCSVSize) {
-            return { errorStr: "CSV File Too Large to Preview (1 MB Max)" };
+            return { errorStr: t("CSV File Too Large to Preview (1 MB Max)", undefined, locale) };
         }
         if (mimeType == "directory") {
             return { specializedView: "directory" };
@@ -550,7 +567,7 @@ export class PreviewModel implements ViewModel {
         if (isTextFile(mimeType) || fileInfo.size == 0) {
             return { specializedView: "codeedit" };
         }
-        return { errorStr: `Preview (${mimeType})` };
+        return { errorStr: formatPreviewMimeTypePreview(mimeType, locale) };
     }
 
     updateOpenFileModalAndError(isOpen, errorMsg = null) {
@@ -666,11 +683,11 @@ export class PreviewModel implements ViewModel {
             globalStore.set(this.newFileContent, null);
             console.log("saved file", filePath);
         } catch (e) {
-            const errorStatus: ErrorMsg = {
-                status: "Save Failed",
+            const locale = globalStore.get(atoms.localeAtom);
+            globalStore.set(this.errorMsgAtom, {
+                status: t("Save Failed", undefined, locale),
                 text: `${e}`,
-            };
-            globalStore.set(this.errorMsgAtom, errorStatus);
+            });
         }
     }
 
@@ -701,12 +718,14 @@ export class PreviewModel implements ViewModel {
     }
 
     getSettingsMenuItems(): ContextMenuItem[] {
+        const locale = globalStore.get(atoms.localeAtom);
+        const tl = (key: string) => t(key, undefined, locale);
         const defaultFontSize = globalStore.get(this.env.getSettingsKeyAtom("editor:fontsize")) ?? 12;
         const blockData = globalStore.get(this.blockAtom);
         const overrideFontSize = blockData?.meta?.["editor:fontsize"];
         const menuItems: ContextMenuItem[] = [];
         menuItems.push({
-            label: "Copy Full Path",
+            label: tl("Copy Full Path"),
             click: () =>
                 fireAndForget(async () => {
                     const filePath = await globalStore.get(this.statFilePath);
@@ -724,7 +743,7 @@ export class PreviewModel implements ViewModel {
                 }),
         });
         menuItems.push({
-            label: "Copy File Name",
+            label: tl("Copy File Name"),
             click: () =>
                 fireAndForget(async () => {
                     const fileInfo = await globalStore.get(this.statFile);
@@ -758,7 +777,7 @@ export class PreviewModel implements ViewModel {
                 }
             );
             fontSizeSubMenu.unshift({
-                label: "Default (" + defaultFontSize + "px)",
+                label: makeDefaultFontSizeLabel(defaultFontSize, locale),
                 type: "checkbox",
                 checked: overrideFontSize == null,
                 click: () => {
@@ -769,23 +788,23 @@ export class PreviewModel implements ViewModel {
                 },
             });
             menuItems.push({
-                label: "Editor Font Size",
+                label: tl("Editor Font Size"),
                 submenu: fontSizeSubMenu,
             });
             if (globalStore.get(this.newFileContent) != null) {
                 menuItems.push({ type: "separator" });
                 menuItems.push({
-                    label: "Save File",
+                    label: tl("Save File"),
                     click: () => fireAndForget(this.handleFileSave.bind(this)),
                 });
                 menuItems.push({
-                    label: "Revert File",
+                    label: tl("Revert File"),
                     click: () => fireAndForget(this.handleFileRevert.bind(this)),
                 });
             }
             menuItems.push({ type: "separator" });
             menuItems.push({
-                label: "Word Wrap",
+                label: tl("Word Wrap"),
                 type: "checkbox",
                 checked: wordWrap,
                 click: () =>
@@ -799,8 +818,8 @@ export class PreviewModel implements ViewModel {
         }
         if (loadableSV.state == "hasData" && loadableSV.data.specializedView == "directory") {
             menuItems.push({ type: "separator" });
-            menuItems.push({ label: "Default Settings", enabled: false });
-            menuItems.push(...makeDirectoryDefaultMenuItems(this));
+            menuItems.push({ label: tl("Default Settings"), enabled: false });
+            menuItems.push(...makeDirectoryDefaultMenuItems(this, locale));
         }
         return menuItems;
     }

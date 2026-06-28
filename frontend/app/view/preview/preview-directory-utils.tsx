@@ -1,6 +1,7 @@
 // Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+import { t, type Locale } from "@/app/i18n";
 import { globalStore } from "@/app/store/jotaiStore";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { fireAndForget, isBlank } from "@/util/util";
@@ -81,12 +82,21 @@ export function cleanMimetype(input: string): string {
     return truncated.trim();
 }
 
+function localizedErrorMsg(status: string, text: string, locale: Locale, extra?: Partial<ErrorMsg>): ErrorMsg {
+    return {
+        status: t(status, undefined, locale),
+        text,
+        ...extra,
+    };
+}
+
 export function handleRename(
     model: PreviewModel,
     path: string,
     newPath: string,
     isDir: boolean,
-    setErrorMsg: (msg: ErrorMsg) => void
+    setErrorMsg: (msg: ErrorMsg) => void,
+    locale: Locale
 ) {
     fireAndForget(async () => {
         try {
@@ -101,11 +111,7 @@ export function handleRename(
         } catch (e) {
             const errorText = `${e}`;
             console.warn(`Rename failed: ${errorText}`);
-            const errorMsg: ErrorMsg = {
-                status: "Rename Failed",
-                text: `${e}`,
-            };
-            setErrorMsg(errorMsg);
+            setErrorMsg(localizedErrorMsg("Rename Failed", `${e}`, locale));
         }
         model.refreshCallback();
     });
@@ -115,7 +121,8 @@ export function handleFileDelete(
     model: PreviewModel,
     path: string,
     recursive: boolean,
-    setErrorMsg: (msg: ErrorMsg) => void
+    setErrorMsg: (msg: ErrorMsg) => void,
+    locale: Locale
 ) {
     fireAndForget(async () => {
         const formattedPath = await model.formatRemoteUri(path, globalStore.get);
@@ -130,21 +137,18 @@ export function handleFileDelete(
             let errorMsg: ErrorMsg;
             if (errorText.includes(recursiveError) && !recursive) {
                 errorMsg = {
-                    status: "Confirm Delete Directory",
-                    text: "Deleting a directory requires the recursive flag. Proceed?",
+                    status: t("Confirm Delete Directory", undefined, locale),
+                    text: t("Deleting a directory requires the recursive flag. Proceed?", undefined, locale),
                     level: "warning",
                     buttons: [
                         {
-                            text: "Delete Recursively",
-                            onClick: () => handleFileDelete(model, path, true, setErrorMsg),
+                            text: t("Delete Recursively", undefined, locale),
+                            onClick: () => handleFileDelete(model, path, true, setErrorMsg, locale),
                         },
                     ],
                 };
             } else {
-                errorMsg = {
-                    status: "Delete Failed",
-                    text: `${e}`,
-                };
+                errorMsg = localizedErrorMsg("Delete Failed", `${e}`, locale);
             }
             setErrorMsg(errorMsg);
         }
@@ -152,15 +156,16 @@ export function handleFileDelete(
     });
 }
 
-export function makeDirectoryDefaultMenuItems(model: PreviewModel): ContextMenuItem[] {
+export function makeDirectoryDefaultMenuItems(model: PreviewModel, locale: Locale): ContextMenuItem[] {
+    const tl = (key: string) => t(key, undefined, locale);
     const defaultSort = globalStore.get(model.env.getSettingsKeyAtom("preview:defaultsort")) ?? "name";
     const showHiddenFiles = globalStore.get(model.showHiddenFiles) ?? true;
     return [
         {
-            label: "Directory Sort Order",
+            label: tl("Directory Sort Order"),
             submenu: [
                 {
-                    label: "Name",
+                    label: tl("Name"),
                     type: "checkbox",
                     checked: defaultSort === "name",
                     click: () =>
@@ -169,7 +174,7 @@ export function makeDirectoryDefaultMenuItems(model: PreviewModel): ContextMenuI
                         ),
                 },
                 {
-                    label: "Last Modified",
+                    label: tl("Last Modified"),
                     type: "checkbox",
                     checked: defaultSort === "modtime",
                     click: () =>
@@ -180,10 +185,10 @@ export function makeDirectoryDefaultMenuItems(model: PreviewModel): ContextMenuI
             ],
         },
         {
-            label: "Show Hidden Files",
+            label: tl("Show Hidden Files"),
             submenu: [
                 {
-                    label: "On",
+                    label: tl("On"),
                     type: "checkbox",
                     checked: showHiddenFiles,
                     click: () => {
@@ -194,7 +199,7 @@ export function makeDirectoryDefaultMenuItems(model: PreviewModel): ContextMenuI
                     },
                 },
                 {
-                    label: "Off",
+                    label: tl("Off"),
                     type: "checkbox",
                     checked: !showHiddenFiles,
                     click: () => {

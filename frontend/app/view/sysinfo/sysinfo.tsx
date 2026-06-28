@@ -1,6 +1,7 @@
 // Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+import { tCurrent } from "@/app/i18n/localeutil";
 import { globalStore } from "@/app/store/jotaiStore";
 import { makeORef } from "@/app/store/wos";
 import * as util from "@/util/util";
@@ -308,7 +309,7 @@ class SysinfoViewModel implements ViewModel {
         }
 
         fullMenu.push({
-            label: "Plot Type",
+            label: tCurrent("Plot Type"),
             submenu: submenu,
         });
         fullMenu.push({ type: "separator" });

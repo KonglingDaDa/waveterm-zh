@@ -1,6 +1,7 @@
 // Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+import { tCurrent } from "@/app/i18n/localeutil";
 import { makeIconClass } from "@/util/util";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import clsx from "clsx";
@@ -143,7 +144,7 @@ export function buildVisibleRows(
                 parentId: id,
                 depth: depth + 1,
                 kind: "loading",
-                label: "Loading…",
+                label: tCurrent("Loading…"),
             });
             return;
         }
@@ -153,7 +154,7 @@ export function buildVisibleRows(
                 parentId: id,
                 depth: depth + 1,
                 kind: "error",
-                label: node.staterror ? `Error: ${node.staterror}` : "Unable to load directory",
+                label: node.staterror ? tCurrent("Error: {error}", { error: node.staterror }) : tCurrent("Unable to load directory"),
             });
             return;
         }
@@ -167,7 +168,7 @@ export function buildVisibleRows(
                 parentId: id,
                 depth: depth + 1,
                 kind: "capped",
-                label: `Showing first ${capMax} entries`,
+                label: tCurrent("Showing first {count} entries", { count: capMax }),
             });
         }
     };
