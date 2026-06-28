@@ -1,0 +1,175 @@
+# Build and publish waveterm-zh release packages to GitHub Releases.
+# Mirrors upstream artifact formats (DMG/ZIP, MSI/NSIS/ZIP, DEB/RPM/AppImage/Snap/Pacman/ZIP).
+# Unsigned builds — no upstream code-signing secrets required.
+
+name: Release zh-CN Build
+run-name: Release zh ${{ github.ref_name }}${{ github.event_name == 'workflow_dispatch' && format(' ({0})', github.event.inputs.tag) || '' }}
+
+on:
+    workflow_dispatch:
+        inputs:
+            tag:
+                description: "Release tag (e.g. v0.14.5-zh.1)"
+                required: true
+                default: "v0.14.5-zh.1"
+            publish:
+                description: "Publish release (false = draft)"
+                required: false
+                default: "true"
+                type: choice
+                options:
+                    - "true"
+                    - "false"
+    push:
+        tags:
+            - "v*-zh*"
+
+env:
+    GO_VERSION: "1.25.6"
+    NODE_VERSION: "22"
+    NODE_OPTIONS: --max-old-space-size=4096
+    CSC_IDENTITY_AUTO_DISCOVERY: "false"
+
+jobs:
+    build-app:
+        strategy:
+            fail-fast: false
+            matrix:
+                include:
+                    - platform: darwin
+                      runner: macos-latest
+                    - platform: linux
+                      runner: ubuntu-latest
+                    - platform: linux
+                      runner: ubuntu-24.04-arm
+                    - platform: windows
+                      runner: windows-latest
+        runs-on: ${{ matrix.runner }}
+        steps:
+            - uses: actions/checkout@v6
+
+            - name: Install Linux build dependencies
+              if: matrix.platform == 'linux'
+              run: |
+                  sudo apt-get update
+                  sudo apt-get install --no-install-recommends -y libarchive-tools libopenjp2-tools rpm squashfs-tools zip
+                  sudo snap install snapcraft --classic
+                  sudo snap install lxd
+                  sudo lxd init --auto
+                  sudo snap refresh
+
+            - name: Install Zig (Linux and Windows)
+              if: matrix.platform != 'darwin'
+              uses: mlugg/setup-zig@v2
+
+            - name: Install FPM (not Windows)
+              if: matrix.platform != 'windows'
+              run: sudo gem install fpm
+
+            - name: Install FPM (Windows)
+              if: matrix.platform == 'windows'
+              run: gem install fpm
+
+            - uses: actions/setup-go@v6
+              with:
+                  go-version: ${{ env.GO_VERSION }}
+                  cache-dependency-path: go.sum
+
+            - uses: actions/setup-node@v6
+              with:
+                  node-version: ${{ env.NODE_VERSION }}
+                  cache: npm
+                  cache-dependency-path: package-lock.json
+
+            - name: Force git deps to HTTPS
+              run: |
+                  git config --global url.https://github.com/.insteadof ssh://git@github.com/
+                  git config --global url.https://github.com/.insteadof git@github.com:
+
+            - name: npm ci
+              run: npm ci --no-audit --no-fund
+              env:
+                  GIT_ASKPASS: echo
+                  GIT_TERMINAL_PROMPT: "0"
+
+            - name: Install Task
+              uses: arduino/setup-task@v2
+              with:
+                  version: 3.x
+                  repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+            - name: Build packages
+              run: task package
+              env:
+                  USE_SYSTEM_FPM: "true"
+                  SNAPCRAFT_BUILD_ENVIRONMENT: host
+                  CSC_IDENTITY_AUTO_DISCOVERY: "false"
+
+            - name: Upload build artifacts
+              uses: actions/upload-artifact@v5
+              with:
+                  name: ${{ matrix.runner }}
+                  path: make
+                  retention-days: 14
+
+            - name: Upload Snapcraft logs on failure
+              if: failure() && matrix.platform == 'linux'
+              uses: actions/upload-artifact@v5
+              with:
+                  name: ${{ matrix.runner }}-snap-log
+                  path: /home/runner/.local/state/snapcraft/log
+                  retention-days: 7
+
+    create-release:
+        runs-on: ubuntu-latest
+        needs: build-app
+        permissions:
+            contents: write
+        steps:
+            - name: Resolve release tag
+              id: tag
+              run: |
+                  if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+                    echo "value=${{ github.event.inputs.tag }}" >> "$GITHUB_OUTPUT"
+                  else
+                    echo "value=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+                  fi
+
+            - name: Download all platform artifacts
+              uses: actions/download-artifact@v4
+              with:
+                  path: make
+                  merge-multiple: true
+
+            - name: List release files
+              run: find make -type f | sort
+
+            - name: Create GitHub Release
+              uses: softprops/action-gh-release@v2
+              with:
+                  tag_name: ${{ steps.tag.outputs.value }}
+                  name: waveterm-zh ${{ steps.tag.outputs.value }}
+                  body: |
+                      Simplified Chinese localization build (waveterm-zh).
+
+                      **Unofficial fork** — not affiliated with [waveterm.dev](https://www.waveterm.dev).
+
+                      ### Packages
+                      - **macOS**: DMG + ZIP (arm64, x64)
+                      - **Windows**: MSI + NSIS installer + ZIP
+                      - **Linux**: DEB, RPM, AppImage, Snap, Pacman, ZIP (amd64 / arm64 per runner)
+
+                      Unsigned builds for community distribution.
+                  draft: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.publish == 'false' }}
+                  prerelease: false
+                  generate_release_notes: false
+                  files: |
+                      make/*.zip
+                      make/*.dmg
+                      make/*.exe
+                      make/*.msi
+                      make/*.rpm
+                      make/*.deb
+                      make/*.pacman
+                      make/*.snap
+                      make/*.AppImage
