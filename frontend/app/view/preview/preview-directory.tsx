@@ -1,7 +1,7 @@
 // Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { t } from "@/app/i18n";
+import { t, type I18nParams, type Locale } from "@/app/i18n";
 import { useLocale, useT } from "@/app/i18n/react";
 import { ContextMenuModel } from "@/app/store/contextmenu";
 import { globalStore } from "@/app/store/jotaiStore";
@@ -296,6 +296,7 @@ function DirectoryTable({
                 setSelectedPath={setSelectedPath}
                 setRefreshVersion={setRefreshVersion}
                 osRef={osRef.current}
+                locale={locale}
             />
         </OverlayScrollbarsComponent>
     );
@@ -313,6 +314,7 @@ interface TableBodyProps {
     setSelectedPath: (_: string) => void;
     setRefreshVersion: React.Dispatch<React.SetStateAction<number>>;
     osRef: OverlayScrollbarsComponentRef;
+    locale: Locale;
 }
 
 function TableBody({
@@ -325,7 +327,12 @@ function TableBody({
     setSearch,
     setRefreshVersion,
     osRef,
+    locale,
 }: TableBodyProps) {
+    const tl = useCallback(
+        (key: string, params?: I18nParams) => t(key, params, locale),
+        [locale]
+    );
     const searchActive = useAtomValue(model.directorySearchActive);
     const dummyLineRef = useRef<HTMLDivElement>(null);
     const warningBoxRef = useRef<HTMLDivElement>(null);
@@ -372,7 +379,6 @@ function TableBody({
                 return;
             }
             const fileName = finfo.path.split("/").pop();
-            const tl = (key: string) => t(key, undefined, locale);
             const menu: ContextMenuItem[] = [
                 {
                     label: tl("New File"),
@@ -431,7 +437,7 @@ function TableBody({
             );
             ContextMenuModel.getInstance().showContextMenu(menu, e);
         },
-        [setRefreshVersion, conn, locale]
+        [tl, conn, model, table, setErrorMsg, locale]
     );
 
     const allRows = table.getRowModel().flatRows;
@@ -444,8 +450,8 @@ function TableBody({
                 <div className="flex rounded-[3px] py-1 px-2 bg-warning text-black" ref={warningBoxRef}>
                     <span>
                         {search === ""
-                            ? tt("Type to search (Esc to cancel)")
-                            : tt('Searching for "{search}"', { search })}
+                            ? tl("Type to search (Esc to cancel)")
+                            : tl('Searching for "{search}"', { search })}
                     </span>
                     <div
                         className="ml-auto bg-transparent flex justify-center items-center flex-col p-0.5 rounded-md hover:bg-hoverbg focus:bg-hoverbg focus-within:bg-hoverbg cursor-pointer"
@@ -562,7 +568,8 @@ function TableRow({ model, row, focusIndex, setFocusIndex, setSearch, idx, handl
 
 const MemoizedTableBody = React.memo(
     TableBody,
-    (prev, next) => prev.table.options.data == next.table.options.data
+    (prev, next) =>
+        prev.table.options.data == next.table.options.data && prev.locale === next.locale
 ) as typeof TableBody;
 
 interface DirectoryPreviewProps {
