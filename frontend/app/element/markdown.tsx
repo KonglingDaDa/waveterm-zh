@@ -10,7 +10,8 @@ import {
     transformBlocks,
 } from "@/app/element/markdown-util";
 import remarkMermaidToTag from "@/app/element/remark-mermaid-to-tag";
-import { boundNumber, useAtomValueSafe, cn } from "@/util/util";
+import { useT } from "@/app/i18n/react";
+import { boundNumber, cn, useAtomValueSafe } from "@/util/util";
 import clsx from "clsx";
 import { Atom } from "jotai";
 import { OverlayScrollbarsComponent, OverlayScrollbarsComponentRef } from "overlayscrollbars-react";
@@ -69,6 +70,7 @@ const Heading = ({ props, hnum }: { props: React.HTMLAttributes<HTMLHeadingEleme
 };
 
 const Mermaid = ({ chart }: { chart: string }) => {
+    const tt = useT();
     const ref = useRef<HTMLDivElement>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -97,7 +99,7 @@ const Mermaid = ({ chart }: { chart: string }) => {
                 setIsLoading(false);
             } catch (err) {
                 console.error("Error rendering mermaid diagram:", err);
-                setError(`Failed to render diagram: ${err.message || err}`);
+                setError(err.message || String(err));
                 setIsLoading(false);
             }
         };
@@ -109,15 +111,15 @@ const Mermaid = ({ chart }: { chart: string }) => {
         if (!ref.current) return;
 
         if (error) {
-            ref.current.textContent = `Error: ${error}`;
+            ref.current.textContent = tt("Failed to render diagram: {error}", { error });
             ref.current.className = "mermaid error";
         } else if (isLoading) {
-            ref.current.textContent = "Loading diagram...";
+            ref.current.textContent = tt("Loading diagram...");
             ref.current.className = "mermaid";
         } else {
             ref.current.className = "mermaid";
         }
-    }, [isLoading, error]);
+    }, [isLoading, error, tt]);
 
     return <div className="mermaid" ref={ref} />;
 };
@@ -136,6 +138,7 @@ type CodeBlockProps = {
 };
 
 const CodeBlock = ({ children, onClickExecute }: CodeBlockProps) => {
+    const tt = useT();
     const getTextContent = (children: any): string => {
         if (typeof children === "string") {
             return children;
@@ -166,7 +169,7 @@ const CodeBlock = ({ children, onClickExecute }: CodeBlockProps) => {
         <pre className="codeblock">
             {children}
             <div className="codeblock-actions">
-                <CopyButton onClick={handleCopy} title="Copy" />
+                <CopyButton onClick={handleCopy} title={tt("Copy")} />
                 {onClickExecute && (
                     <IconButton
                         decl={{
@@ -320,6 +323,7 @@ const Markdown = ({
     rehype = true,
     onClickExecute,
 }: MarkdownProps) => {
+    const tt = useT();
     const textAtomValue = useAtomValueSafe<string>(textAtom);
     const tocRef = useRef<TocItem[]>([]);
     const showToc = useAtomValueSafe(showTocAtom) ?? false;
@@ -405,12 +409,12 @@ const Markdown = ({
                         className="toc-item toc-empty text-secondary"
                         style={{ "--indent-factor": 2 } as React.CSSProperties}
                     >
-                        No sub-headings found
+                        {tt("No sub-headings found")}
                     </div>
                 );
             }
         }
-    }, [showToc, tocRef]);
+    }, [showToc, tocRef, tt]);
 
     let rehypePlugins = null;
     if (rehype) {
@@ -498,7 +502,7 @@ const Markdown = ({
             {toc && (
                 <OverlayScrollbarsComponent className="toc mt-1" options={{ scrollbars: { autoHide: "leave" } }}>
                     <div className="toc-inner">
-                        <h4 className="font-bold">Table of Contents</h4>
+                        <h4 className="font-bold">{tt("Table of Contents")}</h4>
                         {toc}
                     </div>
                 </OverlayScrollbarsComponent>

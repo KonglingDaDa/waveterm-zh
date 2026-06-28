@@ -8,6 +8,7 @@ import * as child_process from "node:child_process";
 import * as path from "path";
 import { PNG } from "pngjs";
 import { Readable } from "stream";
+import { t } from "../frontend/app/i18n";
 import { makeSaveImageDialog, makeSaveScrollbackDialog } from "../frontend/app/i18n/electron-ui";
 import { getMainProcessLocale } from "../frontend/app/i18n/main";
 import { RpcApi } from "../frontend/app/store/wshclientapi";
@@ -214,7 +215,7 @@ export function initIpcHandlers() {
         }
         menu.append(
             new electron.MenuItem({
-                label: "Save Image",
+                label: t("Save Image", undefined, getMainProcessLocale()),
                 click: () => {
                     const resultP = getUrlInSession(event.sender.session, payload.src);
                     resultP
