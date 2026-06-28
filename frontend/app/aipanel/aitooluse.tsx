@@ -1,6 +1,7 @@
 // Copyright 2025, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+import { useT } from "@/app/i18n/react";
 import { BlockModel } from "@/app/block/block-model";
 import { Modal } from "@/app/modals/modal";
 import { recordTEvent } from "@/app/store/global";
@@ -88,8 +89,9 @@ interface AIToolApprovalButtonsProps {
 }
 
 const AIToolApprovalButtons = memo(({ count, onApprove, onDeny }: AIToolApprovalButtonsProps) => {
-    const approveText = count > 1 ? `Approve All (${count})` : "Approve";
-    const denyText = count > 1 ? "Deny All" : "Deny";
+    const tt = useT();
+    const approveText = count > 1 ? tt("Approve All ({count})", { count }) : tt("Approve");
+    const denyText = count > 1 ? tt("Deny All") : tt("Deny");
 
     return (
         <div className="mt-2 flex gap-2">
@@ -117,6 +119,7 @@ interface AIToolUseBatchItemProps {
 }
 
 const AIToolUseBatchItem = memo(({ part, effectiveApproval }: AIToolUseBatchItemProps) => {
+    const tt = useT();
     const statusIcon = part.data.status === "completed" ? "✓" : part.data.status === "error" ? "✗" : "•";
     const statusColor =
         part.data.status === "completed"
@@ -124,7 +127,8 @@ const AIToolUseBatchItem = memo(({ part, effectiveApproval }: AIToolUseBatchItem
             : part.data.status === "error"
               ? "text-error"
               : "text-gray-400";
-    const effectiveErrorMessage = part.data.errormessage || (effectiveApproval === "timeout" ? "Not approved" : null);
+    const effectiveErrorMessage =
+        part.data.errormessage || (effectiveApproval === "timeout" ? tt("Not approved") : null);
 
     return (
         <div className="text-sm pl-2 flex items-start gap-1.5">
@@ -145,6 +149,7 @@ interface AIToolUseBatchProps {
 }
 
 const AIToolUseBatch = memo(({ parts, isStreaming }: AIToolUseBatchProps) => {
+    const tt = useT();
     const [userApprovalOverride, setUserApprovalOverride] = useState<string | null>(null);
 
     const firstTool = parts[0].data;
@@ -168,7 +173,7 @@ const AIToolUseBatch = memo(({ parts, isStreaming }: AIToolUseBatchProps) => {
     return (
         <div className="flex items-start gap-2 p-2 rounded bg-zinc-800/60 border border-zinc-700">
             <div className="flex-1">
-                <div className="font-semibold">Reading Files</div>
+                <div className="font-semibold">{tt("Reading Files")}</div>
                 <div className="mt-1 space-y-0.5">
                     {parts.map((part, idx) => (
                         <AIToolUseBatchItem key={idx} part={part} effectiveApproval={effectiveApproval} />
@@ -190,6 +195,7 @@ interface AIToolUseProps {
 }
 
 const AIToolUse = memo(({ part, isStreaming }: AIToolUseProps) => {
+    const tt = useT();
     const toolData = part.data;
     const [userApprovalOverride, setUserApprovalOverride] = useState<string | null>(null);
     const model = WaveAIModel.getInstance();
@@ -286,9 +292,9 @@ const AIToolUse = memo(({ part, isStreaming }: AIToolUseProps) => {
                                 model.openRestoreBackupModal(toolData.toolcallid);
                             }}
                             className="flex-shrink-0 px-1.5 py-0.5 border border-zinc-600 hover:border-zinc-500 hover:bg-zinc-700 rounded cursor-pointer transition-colors flex items-center gap-1 text-zinc-400"
-                            title="Restore backup file"
+                            title={tt("Restore backup file")}
                         >
-                            <span className="text-xs">Revert File</span>
+                            <span className="text-xs">{tt("Revert File")}</span>
                             <i className="fa fa-clock-rotate-left text-xs"></i>
                         </button>
                     )}
@@ -296,16 +302,16 @@ const AIToolUse = memo(({ part, isStreaming }: AIToolUseProps) => {
                     <button
                         onClick={handleOpenDiff}
                         className="flex-shrink-0 px-1.5 py-0.5 border border-zinc-600 hover:border-zinc-500 hover:bg-zinc-700 rounded cursor-pointer transition-colors flex items-center gap-1 text-zinc-400"
-                        title="Open in diff viewer"
+                        title={tt("Open in diff viewer")}
                     >
-                        <span className="text-xs">Show Diff</span>
+                        <span className="text-xs">{tt("Show Diff")}</span>
                         <i className="fa fa-arrow-up-right-from-square text-xs"></i>
                     </button>
                 )}
             </div>
             {toolData.tooldesc && <ToolDesc text={toolData.tooldesc} className="text-sm text-gray-400 pl-6" />}
             {(toolData.errormessage || effectiveApproval === "timeout") && (
-                <div className="text-sm text-red-300 pl-6">{toolData.errormessage || "Not approved"}</div>
+                <div className="text-sm text-red-300 pl-6">{toolData.errormessage || tt("Not approved")}</div>
             )}
             {effectiveApproval === "needs-approval" && (
                 <div className="pl-6">

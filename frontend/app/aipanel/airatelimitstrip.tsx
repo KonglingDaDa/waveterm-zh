@@ -1,11 +1,14 @@
 // Copyright 2025, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+import { useT } from "@/app/i18n/react";
+import { t, type Locale } from "@/app/i18n";
 import { atoms } from "@/app/store/global";
 import * as jotai from "jotai";
 import { memo, useEffect, useState } from "react";
 
 const GetMoreButton = memo(({ variant, showClose = true }: { variant: "yellow" | "red"; showClose?: boolean }) => {
+    const tt = useT();
     const isYellow = variant === "yellow";
     const bgColor = isYellow ? "bg-yellow-900/30" : "bg-red-900/30";
     const hoverBg = isYellow ? "hover:bg-yellow-700/60" : "hover:bg-red-700/60";
@@ -32,7 +35,7 @@ const GetMoreButton = memo(({ variant, showClose = true }: { variant: "yellow" |
                 {showClose && (
                     <i className={`close fa fa-xmark ${iconColor}/60 hover:${iconColor} transition-colors`}></i>
                 )}
-                <span>Get More</span>
+                <span>{tt("Get More")}</span>
                 <i className={`fa fa-arrow-right ${iconColor}`}></i>
             </button>
         </div>
@@ -41,12 +44,12 @@ const GetMoreButton = memo(({ variant, showClose = true }: { variant: "yellow" |
 
 GetMoreButton.displayName = "GetMoreButton";
 
-function formatTimeRemaining(expirationEpoch: number): string {
+function formatTimeRemaining(expirationEpoch: number, locale: Locale): string {
     const now = Math.floor(Date.now() / 1000);
     const secondsRemaining = expirationEpoch - now;
 
     if (secondsRemaining <= 0) {
-        return "soon";
+        return t("soon", undefined, locale);
     }
 
     const hours = Math.floor(secondsRemaining / 3600);
@@ -59,6 +62,7 @@ function formatTimeRemaining(expirationEpoch: number): string {
 }
 
 const AIRateLimitStripComponent = memo(() => {
+    const tt = useT();
     let rateLimitInfo = jotai.useAtomValue(atoms.waveAIRateLimitInfoAtom);
     // rateLimitInfo = { req: 0, reqlimit: 200, preq: 0, preqlimit: 50, resetepoch: 1759374575 + 45 * 60 }; // testing
     const [, forceUpdate] = useState({});
@@ -82,7 +86,8 @@ const AIRateLimitStripComponent = memo(() => {
     }
 
     const { req, reqlimit, preq, preqlimit, resetepoch } = rateLimitInfo;
-    const timeRemaining = formatTimeRemaining(resetepoch);
+    const locale = jotai.useAtomValue(atoms.localeAtom);
+    const timeRemaining = formatTimeRemaining(resetepoch, locale);
     const totalLimit = preqlimit + reqlimit;
 
     if (preq > 0 && preq <= 5) {
@@ -91,10 +96,10 @@ const AIRateLimitStripComponent = memo(() => {
                 <div className="bg-yellow-900/30 border-b border-yellow-700/50 px-2 py-1.5 flex items-center gap-1 text-[11px] text-yellow-200">
                     <i className="fa fa-sparkles text-yellow-400"></i>
                     <span>
-                        {preqlimit - preq}/{preqlimit} Premium Used
+                        {tt("{used}/{total} Premium Used", { used: preqlimit - preq, total: preqlimit })}
                     </span>
                     <div className="flex-1"></div>
-                    <span className="text-yellow-300/80">Resets in {timeRemaining}</span>
+                    <span className="text-yellow-300/80">{tt("Resets in {time}", { time: timeRemaining })}</span>
                 </div>
                 <GetMoreButton variant="yellow" />
             </div>
@@ -106,13 +111,11 @@ const AIRateLimitStripComponent = memo(() => {
             <div>
                 <div className="bg-yellow-900/30 border-b border-yellow-700/50 px-2 pr-1 py-1.5 flex items-center gap-1 text-[11px] text-yellow-200">
                     <i className="fa fa-check text-yellow-400"></i>
-                    <span>
-                        {preqlimit}/{preqlimit} Premium
-                    </span>
+                    <span>{tt("{total}/{total} Premium", { total: preqlimit })}</span>
                     <span className="text-yellow-400">•</span>
-                    <span className="font-medium">Now on Basic</span>
+                    <span className="font-medium">{tt("Now on Basic")}</span>
                     <div className="flex-1"></div>
-                    <span className="text-yellow-300/80">Resets in {timeRemaining}</span>
+                    <span className="text-yellow-300/80">{tt("Resets in {time}", { time: timeRemaining })}</span>
                 </div>
                 <GetMoreButton variant="yellow" />
             </div>
@@ -124,13 +127,11 @@ const AIRateLimitStripComponent = memo(() => {
             <div>
                 <div className="bg-red-900/30 border-b border-red-700/50 px-2 py-1.5 flex items-center gap-2 text-[11px] text-red-200">
                     <i className="fa fa-check text-red-400"></i>
-                    <span>
-                        {totalLimit}/{totalLimit} Reqs
-                    </span>
+                    <span>{tt("{used}/{total} Reqs", { used: totalLimit, total: totalLimit })}</span>
                     <span className="text-red-400">•</span>
-                    <span className="font-medium">Limit Reached</span>
+                    <span className="font-medium">{tt("Limit Reached")}</span>
                     <div className="flex-1"></div>
-                    <span className="text-red-300/80">Resets in {timeRemaining}</span>
+                    <span className="text-red-300/80">{tt("Resets in {time}", { time: timeRemaining })}</span>
                 </div>
                 <GetMoreButton variant="red" showClose={false} />
             </div>

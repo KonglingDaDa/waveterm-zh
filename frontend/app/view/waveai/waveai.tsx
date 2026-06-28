@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Button } from "@/app/element/button";
+import { t } from "@/app/i18n";
+import { atoms } from "@/app/store/global-atoms";
 import { WorkspaceLayoutModel } from "@/app/workspace/workspace-layout-model";
 import { atom } from "jotai";
 import { useCallback } from "react";
@@ -9,7 +11,7 @@ import { useCallback } from "react";
 export class WaveAiModel implements ViewModel {
     viewType = "waveai";
     viewIcon = atom("sparkles");
-    viewName = atom("Wave AI");
+    viewName = atom((get) => t("Wave AI", undefined, get(atoms.localeAtom)));
     noPadding = atom(true);
     viewComponent = WaveAiDeprecatedView;
 

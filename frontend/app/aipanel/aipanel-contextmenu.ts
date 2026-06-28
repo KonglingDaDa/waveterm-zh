@@ -1,6 +1,8 @@
 // Copyright 2025, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+import { t } from "@/app/i18n";
+import { getCurrentLocale } from "@/app/i18n/localeutil";
 import { waveAIHasSelection } from "@/app/aipanel/waveai-focus-utils";
 import { ContextMenuModel } from "@/app/store/contextmenu";
 import { isDev } from "@/app/store/global";
@@ -14,6 +16,8 @@ export async function handleWaveAIContextMenu(e: React.MouseEvent, showCopy: boo
     e.stopPropagation();
 
     const model = WaveAIModel.getInstance();
+    const locale = getCurrentLocale();
+    const tl = (key: string) => t(key, undefined, locale);
     const menu: ContextMenuItem[] = [];
 
     if (showCopy) {
@@ -27,7 +31,7 @@ export async function handleWaveAIContextMenu(e: React.MouseEvent, showCopy: boo
     }
 
     menu.push({
-        label: "New Chat",
+        label: tl("New Chat"),
         click: () => {
             model.clearChat();
         },
@@ -121,14 +125,14 @@ export async function handleWaveAIContextMenu(e: React.MouseEvent, showCopy: boo
     }
 
     menu.push({
-        label: "Max Output Tokens",
+        label: tl("Max Output Tokens"),
         submenu: maxTokensSubmenu,
     });
 
     menu.push({ type: "separator" });
 
     menu.push({
-        label: "Configure Modes",
+        label: tl("Configure Modes"),
         click: () => {
             RpcApi.RecordTEventCommand(
                 TabRpcClient,
@@ -148,7 +152,7 @@ export async function handleWaveAIContextMenu(e: React.MouseEvent, showCopy: boo
         menu.push({ type: "separator" });
 
         menu.push({
-            label: "Hide Wave AI",
+            label: tl("Hide Wave AI"),
             click: () => {
                 model.closeWaveAIPanel();
             },

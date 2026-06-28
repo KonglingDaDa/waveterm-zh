@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import type { BlockNodeModel } from "@/app/block/blocktypes";
+import { t } from "@/app/i18n";
+import { atoms } from "@/app/store/global-atoms";
 import type { TabModel } from "@/app/store/tab-model";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { DiffViewer } from "@/app/view/codeeditor/diffviewer";
@@ -48,7 +50,7 @@ export class AiFileDiffViewModel implements ViewModel {
         this.errorAtom = jotai.atom(null) as jotai.PrimitiveAtom<string | null>;
         this.loadingAtom = jotai.atom<boolean>(true);
         this.viewIcon = jotai.atom("file-lines");
-        this.viewName = jotai.atom("AI Diff Viewer");
+        this.viewName = jotai.atom((get) => t("AI Diff Viewer", undefined, get(atoms.localeAtom)));
         this.viewText = jotai.atom((get) => {
             const diffData = get(this.diffDataAtom);
             return diffData?.fileName ?? "";

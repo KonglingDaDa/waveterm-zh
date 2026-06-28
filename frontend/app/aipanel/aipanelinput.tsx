@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { formatFileSizeError, isAcceptableFile, validateFileSize } from "@/app/aipanel/ai-utils";
+import { useT } from "@/app/i18n/react";
+import { getCurrentLocale } from "@/app/i18n/localeutil";
 import { waveAIHasFocusWithin } from "@/app/aipanel/waveai-focus-utils";
 import { type WaveAIModel } from "@/app/aipanel/waveai-model";
 import { Tooltip } from "@/element/tooltip";
@@ -22,6 +24,7 @@ export interface AIPanelInputRef {
 }
 
 export const AIPanelInput = memo(({ onSubmit, status, model }: AIPanelInputProps) => {
+    const tt = useT();
     const [input, setInput] = useAtom(model.inputAtom);
     const isFocused = useAtomValue(model.isWaveAIFocusedAtom);
     const isChatEmpty = useAtomValue(model.isChatEmptyAtom);
@@ -29,14 +32,15 @@ export const AIPanelInput = memo(({ onSubmit, status, model }: AIPanelInputProps
     const fileInputRef = useRef<HTMLInputElement>(null);
     const isPanelOpen = useAtomValue(model.getPanelVisibleAtom());
 
-    let placeholder: string;
+    let placeholderKey: string;
     if (!isChatEmpty) {
-        placeholder = "Continue...";
+        placeholderKey = "Continue...";
     } else if (model.inBuilder) {
-        placeholder = "What would you like to build...";
+        placeholderKey = "What would you like to build...";
     } else {
-        placeholder = "Ask Wave AI anything...";
+        placeholderKey = "Ask Wave AI anything...";
     }
+    const placeholder = tt(placeholderKey);
 
     const resizeTextarea = useCallback(() => {
         const textarea = textareaRef.current;
@@ -114,7 +118,7 @@ export const AIPanelInput = memo(({ onSubmit, status, model }: AIPanelInputProps
         for (const file of acceptableFiles) {
             const sizeError = validateFileSize(file);
             if (sizeError) {
-                model.setError(formatFileSizeError(sizeError));
+                model.setError(formatFileSizeError(sizeError, getCurrentLocale()));
                 if (e.target) {
                     e.target.value = "";
                 }
@@ -158,7 +162,7 @@ export const AIPanelInput = memo(({ onSubmit, status, model }: AIPanelInputProps
                         style={{ fontSize: "13px" }}
                         rows={2}
                     />
-                    <Tooltip content="Attach files" placement="top" divClassName="absolute bottom-6.5 right-1">
+                    <Tooltip content={tt("Attach files")} placement="top" divClassName="absolute bottom-6.5 right-1">
                         <button
                             type="button"
                             onClick={handleUploadClick}
@@ -170,7 +174,7 @@ export const AIPanelInput = memo(({ onSubmit, status, model }: AIPanelInputProps
                         </button>
                     </Tooltip>
                     {status === "streaming" ? (
-                        <Tooltip content="Stop Response" placement="top" divClassName="absolute bottom-1.5 right-1">
+                        <Tooltip content={tt("Stop Response")} placement="top" divClassName="absolute bottom-1.5 right-1">
                             <button
                                 type="button"
                                 onClick={() => model.stopResponse()}
@@ -183,7 +187,7 @@ export const AIPanelInput = memo(({ onSubmit, status, model }: AIPanelInputProps
                             </button>
                         </Tooltip>
                     ) : (
-                        <Tooltip content="Send message (Enter)" placement="top" divClassName="absolute bottom-1.5 right-1">
+                        <Tooltip content={tt("Send message (Enter)")} placement="top" divClassName="absolute bottom-1.5 right-1">
                             <button
                                 type="submit"
                                 disabled={status !== "ready" || !input.trim()}

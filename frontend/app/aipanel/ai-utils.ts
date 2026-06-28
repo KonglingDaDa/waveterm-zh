@@ -1,6 +1,7 @@
 // Copyright 2025, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+import { t, type Locale } from "@/app/i18n";
 import { sortByDisplayOrder } from "@/util/util";
 
 const TextFileLimit = 200 * 1024; // 200KB
@@ -371,9 +372,18 @@ export const validateFileSizeFromInfo = (
     return null;
 };
 
-export const formatFileSizeError = (error: FileSizeError): string => {
-    const typeLabel = error.fileType === "image" ? "Image" : error.fileType === "pdf" ? "PDF" : "Text file";
-    return `${typeLabel} "${error.fileName}" is too large (${formatFileSize(error.fileSize)}). Maximum size is ${formatFileSize(error.maxSize)}.`;
+export const formatFileSizeError = (error: FileSizeError, locale: Locale = "en-US"): string => {
+    const typeKey = error.fileType === "image" ? "Image" : error.fileType === "pdf" ? "PDF" : "Text file";
+    return t(
+        "{type} \"{fileName}\" is too large ({fileSize}). Maximum size is {maxSize}.",
+        {
+            type: t(typeKey, undefined, locale),
+            fileName: error.fileName,
+            fileSize: formatFileSize(error.fileSize),
+            maxSize: formatFileSize(error.maxSize),
+        },
+        locale
+    );
 };
 
 /**
@@ -575,13 +585,32 @@ export const getFilteredAIModeConfigs = (
     };
 };
 
+const BUILTIN_AI_MODE_I18N: Record<string, { nameKey: string; descriptionKey?: string }> = {
+    "waveaibuilder@default": {
+        nameKey: "Builder Default",
+        descriptionKey: "Good mix of speed and accuracy\n(gpt-5.4 with minimal thinking)",
+    },
+    "waveaibuilder@deep": {
+        nameKey: "Builder Deep",
+        descriptionKey: "Slower but most capable\n(gpt-5.4 with full reasoning)",
+    },
+};
+
+export type ModeDisplayOpts = {
+    modeId?: string;
+    locale?: Locale;
+};
+
 /**
  * Get the display name for an AI mode configuration.
- * If display:name is set, use that. Otherwise, construct from model/provider.
- * For azure-legacy, show "azureresourcename (azure)".
- * For other providers, show "model (provider)".
+ * Built-in builder modes use i18n when locale is provided; user custom modes fall back to display:name.
  */
-export function getModeDisplayName(config: AIModeConfigType): string {
+export function getModeDisplayName(config: AIModeConfigType, opts?: ModeDisplayOpts): string {
+    const modeId = opts?.modeId;
+    const locale = opts?.locale;
+    if (modeId && locale && BUILTIN_AI_MODE_I18N[modeId]) {
+        return t(BUILTIN_AI_MODE_I18N[modeId].nameKey, undefined, locale);
+    }
     if (config["display:name"]) {
         return config["display:name"];
     }
@@ -595,4 +624,16 @@ export function getModeDisplayName(config: AIModeConfigType): string {
     }
 
     return `${model || "unknown"} (${provider || "custom"})`;
+}
+
+export function getModeDisplayDescription(config: AIModeConfigType, opts?: ModeDisplayOpts): string | null {
+    const modeId = opts?.modeId;
+    const locale = opts?.locale;
+    if (modeId && locale) {
+        const descriptionKey = BUILTIN_AI_MODE_I18N[modeId]?.descriptionKey;
+        if (descriptionKey) {
+            return t(descriptionKey, undefined, locale);
+        }
+    }
+    return config["display:description"] ?? null;
 }
