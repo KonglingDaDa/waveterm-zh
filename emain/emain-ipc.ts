@@ -8,6 +8,9 @@ import * as child_process from "node:child_process";
 import * as path from "path";
 import { PNG } from "pngjs";
 import { Readable } from "stream";
+import { t } from "../frontend/app/i18n";
+import { makeSaveImageDialog, makeSaveScrollbackDialog } from "../frontend/app/i18n/electron-ui";
+import { getMainProcessLocale } from "../frontend/app/i18n/main";
 import { RpcApi } from "../frontend/app/store/wshclientapi";
 import { getWebServerEndpoint } from "../frontend/util/endpoints";
 import * as keyutil from "../frontend/util/keyutil";
@@ -162,12 +165,9 @@ function saveImageFileWithNativeDialog(
         return fileName;
     }
     defaultFileName = addExtensionIfNeeded(defaultFileName, mimeType);
+    const locale = getMainProcessLocale();
     electron.dialog
-        .showSaveDialog(ww, {
-            title: "Save Image",
-            defaultPath: defaultFileName,
-            filters: [{ name: "Images", extensions: ["png", "jpg", "jpeg", "gif", "webp", "bmp", "tiff", "heic"] }],
-        })
+        .showSaveDialog(ww, makeSaveImageDialog(locale, defaultFileName))
         .then((file) => {
             if (file.canceled) {
                 readStream.destroy();
@@ -215,7 +215,7 @@ export function initIpcHandlers() {
         }
         menu.append(
             new electron.MenuItem({
-                label: "Save Image",
+                label: t("Save Image", undefined, getMainProcessLocale()),
                 click: () => {
                     const resultP = getUrlInSession(event.sender.session, payload.src);
                     resultP
@@ -513,11 +513,11 @@ export function initIpcHandlers() {
         if (ww == null) {
             return false;
         }
-        const result = await electron.dialog.showSaveDialog(ww, {
-            title: "Save Scrollback",
-            defaultPath: fileName || "session.log",
-            filters: [{ name: "Text Files", extensions: ["txt", "log"] }],
-        });
+        const locale = getMainProcessLocale();
+        const result = await electron.dialog.showSaveDialog(
+            ww,
+            makeSaveScrollbackDialog(locale, fileName || "session.log")
+        );
         if (result.canceled || !result.filePath) {
             return false;
         }
