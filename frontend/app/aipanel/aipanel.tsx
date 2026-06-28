@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { handleWaveAIContextMenu } from "@/app/aipanel/aipanel-contextmenu";
+import { useT } from "@/app/i18n/react";
+import { getCurrentLocale } from "@/app/i18n/localeutil";
 import { waveAIHasSelection } from "@/app/aipanel/waveai-focus-utils";
 import { useTabBackground } from "@/app/block/blockutil";
 import { ErrorBoundary } from "@/app/element/errorboundary";
@@ -55,6 +57,7 @@ const AIBlockMask = memo(() => {
 AIBlockMask.displayName = "AIBlockMask";
 
 const AIDragOverlay = memo(() => {
+    const tt = useT();
     return (
         <div
             key="drag-overlay"
@@ -62,8 +65,8 @@ const AIDragOverlay = memo(() => {
         >
             <div className="text-accent text-center">
                 <i className="fa fa-upload text-3xl mb-2"></i>
-                <div className="text-lg font-semibold">Drop files here</div>
-                <div className="text-sm">Images, PDFs, and text/code files supported</div>
+                <div className="text-lg font-semibold">{tt("Drop files here")}</div>
+                <div className="text-sm">{tt("Images, PDFs, and text/code files supported")}</div>
             </div>
         </div>
     );
@@ -87,6 +90,7 @@ const KeyCap = memo(({ children, className }: { children: React.ReactNode; class
 KeyCap.displayName = "KeyCap";
 
 const AIWelcomeMessage = memo(() => {
+    const tt = useT();
     const modKey = isMacOS() ? "⌘" : "Alt";
     const aiModeConfigs = jotai.useAtomValue(atoms.waveaiModeConfigAtom);
     const hasCustomModes = Object.keys(aiModeConfigs).some((key) => !key.startsWith("waveai@"));
@@ -94,31 +98,32 @@ const AIWelcomeMessage = memo(() => {
         <div className="text-secondary py-8">
             <div className="text-center">
                 <i className="fa fa-sparkles text-4xl text-accent mb-2 block"></i>
-                <p className="text-lg font-bold text-primary">Welcome to Wave AI</p>
+                <p className="text-lg font-bold text-primary">{tt("Welcome to Wave AI")}</p>
             </div>
             <div className="mt-4 text-left max-w-md mx-auto">
                 <p className="text-sm mb-6">
-                    Wave AI is your terminal assistant with context. I can read your terminal output, analyze widgets,
-                    access files, and help you solve problems faster.
+                    {tt(
+                        "Wave AI is your terminal assistant with context. I can read your terminal output, analyze widgets, access files, and help you solve problems faster."
+                    )}
                 </p>
                 <div className="bg-accent/10 border border-accent/30 rounded-lg p-4">
-                    <div className="text-sm font-semibold mb-3 text-accent">Getting Started:</div>
+                    <div className="text-sm font-semibold mb-3 text-accent">{tt("Getting Started:")}</div>
                     <div className="space-y-3 text-sm">
                         <div className="flex items-start gap-3">
                             <div className="w-4 text-center flex-shrink-0">
                                 <i className="fa-solid fa-plug text-accent"></i>
                             </div>
                             <div>
-                                <span className="font-bold">Widget Context</span>
-                                <div className="">When ON, I can read your terminal and analyze widgets.</div>
-                                <div className="">When OFF, I'm sandboxed with no system access.</div>
+                                <span className="font-bold">{tt("Widget Context")}</span>
+                                <div className="">{tt("When ON, I can read your terminal and analyze widgets.")}</div>
+                                <div className="">{tt("When OFF, I'm sandboxed with no system access.")}</div>
                             </div>
                         </div>
                         <div className="flex items-start gap-3">
                             <div className="w-4 text-center flex-shrink-0">
                                 <i className="fa-solid fa-file-import text-accent"></i>
                             </div>
-                            <div>Drag & drop files or images for analysis</div>
+                            <div>{tt("Drag & drop files or images for analysis")}</div>
                         </div>
                         <div className="flex items-start gap-3">
                             <div className="w-4 text-center flex-shrink-0">
@@ -128,27 +133,27 @@ const AIWelcomeMessage = memo(() => {
                                 <div>
                                     <KeyCap>{modKey}</KeyCap>
                                     <KeyCap className="ml-1">K</KeyCap>
-                                    <span className="ml-1.5">to start a new chat</span>
+                                    <span className="ml-1.5">{tt("to start a new chat")}</span>
                                 </div>
                                 <div>
                                     <KeyCap>{modKey}</KeyCap>
                                     <KeyCap className="ml-1">Shift</KeyCap>
                                     <KeyCap className="ml-1">A</KeyCap>
-                                    <span className="ml-1.5">to toggle panel</span>
+                                    <span className="ml-1.5">{tt("to toggle panel")}</span>
                                 </div>
                                 <div>
                                     {isWindows() ? (
                                         <>
                                             <KeyCap>Alt</KeyCap>
                                             <KeyCap className="ml-1">0</KeyCap>
-                                            <span className="ml-1.5">to focus</span>
+                                            <span className="ml-1.5">{tt("to focus")}</span>
                                         </>
                                     ) : (
                                         <>
                                             <KeyCap>Ctrl</KeyCap>
                                             <KeyCap className="ml-1">Shift</KeyCap>
                                             <KeyCap className="ml-1">0</KeyCap>
-                                            <span className="ml-1.5">to focus</span>
+                                            <span className="ml-1.5">{tt("to focus")}</span>
                                         </>
                                     )}
                                 </div>
@@ -159,14 +164,14 @@ const AIWelcomeMessage = memo(() => {
                                 <i className="fa-brands fa-discord text-accent"></i>
                             </div>
                             <div>
-                                Questions or feedback?{" "}
+                                {tt("Questions or feedback?")}{" "}
                                 <a
                                     target="_blank"
                                     href="https://discord.gg/XfvZ334gwU"
                                     rel="noopener"
                                     className="text-accent hover:underline cursor-pointer"
                                 >
-                                    Join our Discord
+                                    {tt("Join our Discord")}
                                 </a>
                             </div>
                         </div>
@@ -174,7 +179,7 @@ const AIWelcomeMessage = memo(() => {
                 </div>
                 {!hasCustomModes && <BYOKAnnouncement />}
                 <div className="mt-4 text-center text-[12px] text-muted">
-                    BETA: Free to use. Daily limits keep our costs in check.
+                    {tt("BETA: Free to use. Daily limits keep our costs in check.")}
                 </div>
             </div>
         </div>
@@ -184,15 +189,16 @@ const AIWelcomeMessage = memo(() => {
 AIWelcomeMessage.displayName = "AIWelcomeMessage";
 
 const AIBuilderWelcomeMessage = memo(() => {
+    const tt = useT();
     return (
         <div className="text-secondary py-8">
             <div className="text-center">
                 <i className="fa fa-sparkles text-4xl text-accent mb-4 block"></i>
-                <p className="text-lg font-bold text-primary">WaveApp Builder</p>
+                <p className="text-lg font-bold text-primary">{tt("WaveApp Builder")}</p>
             </div>
             <div className="mt-4 text-left max-w-md mx-auto">
                 <p className="text-sm mb-6">
-                    The WaveApp builder helps create wave widgets that integrate seamlessly into Wave Terminal.
+                    {tt("The WaveApp builder helps create wave widgets that integrate seamlessly into Wave Terminal.")}
                 </p>
             </div>
         </div>
@@ -202,6 +208,7 @@ const AIBuilderWelcomeMessage = memo(() => {
 AIBuilderWelcomeMessage.displayName = "AIBuilderWelcomeMessage";
 
 const AIErrorMessage = memo(() => {
+    const tt = useT();
     const model = WaveAIModel.getInstance();
     const errorMessage = jotai.useAtomValue(model.errorMessage);
 
@@ -214,7 +221,7 @@ const AIErrorMessage = memo(() => {
             <button
                 onClick={() => model.clearError()}
                 className="absolute top-2 right-2 text-red-400 hover:text-red-300 cursor-pointer z-10"
-                aria-label="Close error"
+                aria-label={tt("Close error")}
             >
                 <i className="fa fa-times text-sm"></i>
             </button>
@@ -224,7 +231,7 @@ const AIErrorMessage = memo(() => {
                     onClick={() => model.clearChat()}
                     className="ml-2 text-xs text-red-300 hover:text-red-200 cursor-pointer underline"
                 >
-                    New Chat
+                    {tt("New Chat")}
                 </button>
             </div>
         </div>
@@ -252,6 +259,7 @@ type AIPanelComponentInnerProps = {
 };
 
 const AIPanelComponentInner = memo(({ roundTopLeft }: AIPanelComponentInnerProps) => {
+    const tt = useT();
     const [isDragOver, setIsDragOver] = useState(false);
     const [isReactDndDragOver, setIsReactDndDragOver] = useState(false);
     const [initialLoadDone, setInitialLoadDone] = useState(false);
@@ -295,7 +303,7 @@ const AIPanelComponentInner = memo(({ roundTopLeft }: AIPanelComponentInnerProps
         }),
         onError: (error) => {
             console.error("AI Chat error:", error);
-            model.setError(error.message || "An error occurred");
+            model.setError(error.message || tt("An error occurred"));
         },
     });
 
@@ -456,7 +464,7 @@ const AIPanelComponentInner = memo(({ roundTopLeft }: AIPanelComponentInnerProps
         for (const file of acceptableFiles) {
             const sizeError = validateFileSize(file);
             if (sizeError) {
-                model.setError(formatFileSizeError(sizeError));
+                model.setError(formatFileSizeError(sizeError, getCurrentLocale()));
                 return;
             }
             await model.addFile(file);
@@ -466,9 +474,11 @@ const AIPanelComponentInner = memo(({ roundTopLeft }: AIPanelComponentInnerProps
             const rejectedCount = files.length - acceptableFiles.length;
             const rejectedFiles = files.filter((f) => !isAcceptableFile(f));
             const fileNames = rejectedFiles.map((f) => f.name).join(", ");
-            model.setError(
-                `${rejectedCount} file${rejectedCount > 1 ? "s" : ""} rejected (unsupported type): ${fileNames}. Supported: images, PDFs, and text/code files.`
-            );
+            const rejectKey =
+                rejectedCount > 1
+                    ? "{count} files rejected (unsupported type): {fileNames}. Supported: images, PDFs, and text/code files."
+                    : "{count} file rejected (unsupported type): {fileNames}. Supported: images, PDFs, and text/code files.";
+            model.setError(tt(rejectKey, { count: rejectedCount, fileNames }));
         }
     };
 

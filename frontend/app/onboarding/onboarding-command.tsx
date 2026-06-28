@@ -1,6 +1,8 @@
 // Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+import { useT } from "@/app/i18n/react";
+import type { I18nParams } from "@/app/i18n/index";
 import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import { FakeBlock } from "./onboarding-layout";
 import { FakeTermBlock } from "./onboarding-layout-term";
@@ -87,17 +89,25 @@ export const FakeCommand = ({ command, typeIntervalMs = 100, onComplete, childre
     );
 };
 
-export const ViewShortcutsCommand = ({ isMac, onComplete }: { isMac: boolean; onComplete?: () => void }) => {
+const buildKeyboardShortcutsMarkdown = (
+    tt: (key: string | null | undefined, params?: I18nParams) => string,
+    isMac: boolean
+) => {
     const modKey = isMac ? "⌘ Cmd" : "Alt";
-    const markdown = `### Keyboard Shortcuts
+    return `### ${tt("Keyboard Shortcuts")}
 
-**Switch Tabs**
-Press ${modKey} + Number (1-9) to quickly switch between tabs.
+**${tt("Switch Tabs")}**
+${tt("Press {modKey} + Number (1-9) to quickly switch between tabs.", { modKey })}
 
-**Navigate Blocks**
-Use Ctrl-Shift + Arrow Keys (←→↑↓) to move between blocks in the current tab.
+**${tt("Navigate Blocks")}**
+${tt("Use Ctrl-Shift + Arrow Keys (←→↑↓) to move between blocks in the current tab.")}
 
-Use Ctrl-Shift + Number (1-9) to focus a specific block by its position.`;
+${tt("Use Ctrl-Shift + Number (1-9) to focus a specific block by its position.")}`;
+};
+
+export const ViewShortcutsCommand = ({ isMac, onComplete }: { isMac: boolean; onComplete?: () => void }) => {
+    const tt = useT();
+    const markdown = buildKeyboardShortcutsMarkdown(tt, isMac);
 
     return (
         <FakeCommand command="wsh view keyboard-shortcuts.md" onComplete={onComplete}>

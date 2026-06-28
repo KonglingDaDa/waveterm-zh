@@ -1,6 +1,8 @@
 // Copyright 2025, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+import { localizeAIModeDisplayDescription, localizeAIModeDisplayName } from "@/app/i18n/display-names";
+import { t, type Locale } from "@/app/i18n";
 import { sortByDisplayOrder } from "@/util/util";
 
 const TextFileLimit = 200 * 1024; // 200KB
@@ -371,9 +373,18 @@ export const validateFileSizeFromInfo = (
     return null;
 };
 
-export const formatFileSizeError = (error: FileSizeError): string => {
-    const typeLabel = error.fileType === "image" ? "Image" : error.fileType === "pdf" ? "PDF" : "Text file";
-    return `${typeLabel} "${error.fileName}" is too large (${formatFileSize(error.fileSize)}). Maximum size is ${formatFileSize(error.maxSize)}.`;
+export const formatFileSizeError = (error: FileSizeError, locale: Locale = "en-US"): string => {
+    const typeKey = error.fileType === "image" ? "Image" : error.fileType === "pdf" ? "PDF" : "Text file";
+    return t(
+        "{type} \"{fileName}\" is too large ({fileSize}). Maximum size is {maxSize}.",
+        {
+            type: t(typeKey, undefined, locale),
+            fileName: error.fileName,
+            fileSize: formatFileSize(error.fileSize),
+            maxSize: formatFileSize(error.maxSize),
+        },
+        locale
+    );
 };
 
 /**
@@ -575,13 +586,24 @@ export const getFilteredAIModeConfigs = (
     };
 };
 
+export type ModeDisplayOpts = {
+    modeId?: string;
+    locale?: Locale;
+};
+
 /**
  * Get the display name for an AI mode configuration.
- * If display:name is set, use that. Otherwise, construct from model/provider.
- * For azure-legacy, show "azureresourcename (azure)".
- * For other providers, show "model (provider)".
+ * System waveai@* / waveaibuilder@* presets use i18n; user custom modes fall back to display:name.
  */
-export function getModeDisplayName(config: AIModeConfigType): string {
+export function getModeDisplayName(config: AIModeConfigType, opts?: ModeDisplayOpts): string {
+    const modeId = opts?.modeId;
+    const locale = opts?.locale;
+    if (modeId && locale) {
+        const localized = localizeAIModeDisplayName(modeId, config["display:name"], locale);
+        if (localized) {
+            return localized;
+        }
+    }
     if (config["display:name"]) {
         return config["display:name"];
     }
@@ -595,4 +617,13 @@ export function getModeDisplayName(config: AIModeConfigType): string {
     }
 
     return `${model || "unknown"} (${provider || "custom"})`;
+}
+
+export function getModeDisplayDescription(config: AIModeConfigType, opts?: ModeDisplayOpts): string | null {
+    const modeId = opts?.modeId;
+    const locale = opts?.locale;
+    if (modeId && locale) {
+        return localizeAIModeDisplayDescription(modeId, config["display:description"], locale);
+    }
+    return config["display:description"] ?? null;
 }

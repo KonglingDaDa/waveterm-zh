@@ -21,6 +21,7 @@ import { base64ToArrayBuffer } from "@/util/util";
 import { ChatStatus } from "ai";
 import * as jotai from "jotai";
 import type React from "react";
+import { tCurrent } from "@/app/i18n/localeutil";
 import {
     createDataUrl,
     createImagePreview,
@@ -226,18 +227,18 @@ export class WaveAIModel {
 
     async addFileFromRemoteUri(draggedFile: DraggedFile): Promise<void> {
         if (draggedFile.isDir) {
-            this.setError("Cannot add directories to Wave AI. Please select a file.");
+            this.setError(tCurrent("Cannot add directories to Wave AI. Please select a file."));
             return;
         }
 
         try {
             const fileInfo = await RpcApi.FileInfoCommand(TabRpcClient, { info: { path: draggedFile.uri } }, null);
             if (fileInfo.notfound) {
-                this.setError(`File not found: ${draggedFile.relName}`);
+                this.setError(tCurrent("File not found: {fileName}", { fileName: draggedFile.relName }));
                 return;
             }
             if (fileInfo.isdir) {
-                this.setError("Cannot add directories to Wave AI. Please select a file.");
+                this.setError(tCurrent("Cannot add directories to Wave AI. Please select a file."));
                 return;
             }
 
@@ -245,13 +246,13 @@ export class WaveAIModel {
             const fileSize = fileInfo.size || 0;
             const sizeError = validateFileSizeFromInfo(draggedFile.relName, fileSize, mimeType);
             if (sizeError) {
-                this.setError(formatFileSizeError(sizeError));
+                this.setError(formatFileSizeError(sizeError, globalStore.get(atoms.localeAtom)));
                 return;
             }
 
             const fileData = await RpcApi.FileReadCommand(TabRpcClient, { info: { path: draggedFile.uri } }, null);
             if (!fileData.data64) {
-                this.setError(`Failed to read file: ${draggedFile.relName}`);
+                this.setError(tCurrent("Failed to read file: {fileName}", { fileName: draggedFile.relName }));
                 return;
             }
 
@@ -259,7 +260,10 @@ export class WaveAIModel {
             const file = new File([buffer], draggedFile.relName, { type: mimeType });
             if (!isAcceptableFile(file)) {
                 this.setError(
-                    `File type not supported: ${draggedFile.relName}. Supported: images, PDFs, and text/code files.`
+                    tCurrent(
+                        "File type not supported: {fileName}. Supported: images, PDFs, and text/code files.",
+                        { fileName: draggedFile.relName }
+                    )
                 );
                 return;
             }
@@ -268,7 +272,7 @@ export class WaveAIModel {
         } catch (error) {
             console.error("Error handling FILE_ITEM drop:", error);
             const errorMsg = error instanceof Error ? error.message : String(error);
-            this.setError(`Failed to add file: ${errorMsg}`);
+            this.setError(tCurrent("Failed to add file: {error}", { error: errorMsg }));
         }
     }
 
@@ -498,7 +502,7 @@ export class WaveAIModel {
             return await this.reloadChatFromBackend(chatIdValue);
         } catch (error) {
             console.error("Failed to load chat:", error);
-            this.setError("Failed to load chat. Starting new chat...");
+            this.setError(tCurrent("Failed to load chat. Starting new chat..."));
 
             this.clearChat();
             return [];
