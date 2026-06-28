@@ -3,6 +3,7 @@
 
 import type { BlockNodeModel } from "@/app/block/blocktypes";
 import { t } from "@/app/i18n";
+import { useT } from "@/app/i18n/react";
 import { atoms } from "@/app/store/global-atoms";
 import type { TabModel } from "@/app/store/tab-model";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
@@ -63,6 +64,7 @@ export class AiFileDiffViewModel implements ViewModel {
 }
 
 function AiFileDiffView({ blockId, model }: ViewComponentProps<AiFileDiffViewModel>) {
+    const tt = useT();
     const blockData = jotai.useAtomValue(model.blockAtom);
     const diffData = jotai.useAtomValue(model.diffDataAtom);
     const error = jotai.useAtomValue(model.errorAtom);
@@ -120,7 +122,7 @@ function AiFileDiffView({ blockId, model }: ViewComponentProps<AiFileDiffViewMod
     if (loading) {
         return (
             <div className="flex items-center justify-center w-full h-full">
-                <div className="text-secondary">Loading diff...</div>
+                <div className="text-secondary">{tt("Loading diff...")}</div>
             </div>
         );
     }
@@ -136,7 +138,7 @@ function AiFileDiffView({ blockId, model }: ViewComponentProps<AiFileDiffViewMod
     if (!diffData) {
         return (
             <div className="flex items-center justify-center w-full h-full">
-                <div className="text-secondary">No diff data available</div>
+                <div className="text-secondary">{tt("No diff data available")}</div>
             </div>
         );
     }

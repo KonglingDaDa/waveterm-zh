@@ -9,6 +9,7 @@ import {
     localizeAIModeDisplayName,
     localizeBackgroundName,
     localizeTermThemeName,
+    localizeWidgetDescription,
     localizeWidgetLabel,
     widgetMatchesSearch,
 } from "@/app/i18n/display-names";
@@ -23,6 +24,8 @@ import {
 } from "@/app/view/processviewer/processviewer-ui";
 import { formatConfigErrorLine, makeConfigFiles } from "@/app/view/waveconfig/waveconfig-files";
 import { blockViewToName } from "@/app/block/blockutil";
+import type { WaveUIMessagePart } from "@/app/aipanel/aitypes";
+import type { TabEnv } from "@/app/tab/tab";
 import { globalStore } from "@/app/store/jotaiStore";
 import { buildTabBarContextMenu } from "@/app/tab/tabcontextmenu";
 import { atom } from "jotai";
@@ -67,7 +70,7 @@ describe("locale slice", () => {
                 atom((get) => get(settingsAtom)?.[key] ?? null) as ReturnType<typeof atom>,
             atoms: { fullConfigAtom },
             rpc: {} as TabEnv["rpc"],
-        } as TabEnv;
+        } as unknown as TabEnv;
 
         const enMenu = buildTabBarContextMenu(env, "en-US");
         const zhMenu = buildTabBarContextMenu(env, "zh-CN");
@@ -287,6 +290,8 @@ describe("locale slice", () => {
 
         expect(localizeWidgetLabel("defwidget@terminal", "terminal", "zh-CN")).toBe("终端");
         expect(localizeWidgetLabel("mywidget@custom", "My Widget", "zh-CN")).toBe("My Widget");
+        expect(localizeWidgetDescription("defwidget@terminal", "Open a terminal", "zh-CN")).toBe("打开终端");
+        expect(localizeWidgetDescription("mywidget@custom", "Custom tooltip", "zh-CN")).toBe("Custom tooltip");
 
         expect(localizeAIModeDisplayName("waveai@quick", "Quick", "zh-CN")).toBe("快速");
         expect(localizeAIModeDisplayDescription("waveai@quick", "Fastest responses (gpt-5-mini)", "zh-CN")).toBe(
@@ -345,10 +350,16 @@ describe("locale slice", () => {
     });
 
     it("getThinkingMessage returns locale-specific status text", () => {
-        const parts = [
+        const parts: WaveUIMessagePart[] = [
             {
-                type: "data-tooluse" as const,
-                data: { approval: "needs-approval", toolcallid: "1" },
+                type: "data-tooluse",
+                data: {
+                    toolcallid: "1",
+                    toolname: "read_file",
+                    tooldesc: "Reading file",
+                    status: "pending",
+                    approval: "needs-approval",
+                },
             },
         ];
         expect(getThinkingMessage(parts, true, "assistant", "en-US")?.message).toBe("Waiting for Tool Approvals...");

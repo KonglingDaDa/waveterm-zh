@@ -40,6 +40,14 @@ const WIDGET_PRESET_LABEL_KEYS: Record<string, string> = {
     "defwidget@processviewer": "processes",
 };
 
+const WIDGET_PRESET_DESCRIPTION_KEYS: Record<string, string> = {
+    "defwidget@terminal": "Open a terminal",
+    "defwidget@files": "Browse files",
+    "defwidget@web": "Open a web browser",
+    "defwidget@sysinfo": "View system information",
+    "defwidget@processviewer": "View running processes",
+};
+
 /** waveai@* from pkg/wconfig/defaultconfig/waveai.json and waveaibuilder@* built-ins */
 const AI_MODE_NAME_KEYS: Record<string, string> = {
     "waveai@quick": "Quick",
@@ -110,8 +118,11 @@ export function localizeWidgetDescription(
     fallback: string | undefined,
     locale: Locale
 ): string | undefined {
-    if (!fallback || !isSystemWidgetPreset(id)) {
-        return fallback;
+    if (isSystemWidgetPreset(id)) {
+        const key = WIDGET_PRESET_DESCRIPTION_KEYS[id];
+        if (key) {
+            return t(key, undefined, locale);
+        }
     }
     return fallback;
 }

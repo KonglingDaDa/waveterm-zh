@@ -210,7 +210,7 @@ function DirectoryTable({
                 },
             });
         },
-        [model, setErrorMsg]
+        [model, setErrorMsg, locale, setEntryManagerProps]
     );
 
     const initialSorting = defaultSort === "modtime" ? [{ id: "modtime", desc: true }] : [{ id: "name", desc: false }];

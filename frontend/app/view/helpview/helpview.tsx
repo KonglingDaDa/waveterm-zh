@@ -68,6 +68,8 @@ class HelpViewModel extends WebViewModel {
     }
 
     getSettingsMenuItems(): ContextMenuItem[] {
+        const locale = globalStore.get(atoms.localeAtom);
+        const tl = (key: string) => t(key, undefined, locale);
         const zoomSubMenu: ContextMenuItem[] = [];
         let curZoom = 1;
         if (globalStore.get(this.domReady)) {
@@ -86,7 +88,7 @@ class HelpViewModel extends WebViewModel {
             };
         }
         zoomSubMenu.push({
-            label: "Reset",
+            label: tl("Reset"),
             click: () => {
                 model.setZoomFactor(null);
             },
@@ -106,7 +108,7 @@ class HelpViewModel extends WebViewModel {
 
         return [
             {
-                label: this.webviewRef.current?.isDevToolsOpened() ? "Close DevTools" : "Open DevTools",
+                label: this.webviewRef.current?.isDevToolsOpened() ? tl("Close DevTools") : tl("Open DevTools"),
                 click: async () => {
                     if (this.webviewRef.current) {
                         if (this.webviewRef.current.isDevToolsOpened()) {
@@ -118,7 +120,7 @@ class HelpViewModel extends WebViewModel {
                 },
             },
             {
-                label: "Set Zoom Factor",
+                label: tl("Set Zoom Factor"),
                 submenu: zoomSubMenu,
             },
         ];

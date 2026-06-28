@@ -121,7 +121,7 @@ export class LauncherViewModel implements ViewModel {
                 return true;
             }
             if (filteredWidgets[selectedIndex]) {
-                this.handleWidgetSelect(filteredWidgets[selectedIndex]);
+                this.handleWidgetSelect(filteredWidgets[selectedIndex].widget);
             }
             return true;
         }
