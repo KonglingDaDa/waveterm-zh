@@ -1,6 +1,8 @@
 // Copyright 2025, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+import { makeArm64WarningDialog } from "@/app/i18n/electron-ui";
+import { getLocaleFromFullConfig } from "@/app/i18n/main";
 import { fireAndForget } from "@/util/util";
 import { app, dialog, ipcMain, shell } from "electron";
 import envPaths from "env-paths";
@@ -44,14 +46,8 @@ const WaveHomeVarName = "WAVETERM_HOME";
 export function checkIfRunningUnderARM64Translation(fullConfig: FullConfigType) {
     if (!fullConfig.settings["app:dismissarchitecturewarning"] && app.runningUnderARM64Translation) {
         console.log("Running under ARM64 translation, alerting user");
-        const dialogOpts: Electron.MessageBoxOptions = {
-            type: "warning",
-            buttons: ["Dismiss", "Learn More"],
-            title: "Wave has detected a performance issue",
-            message: `Wave is running in ARM64 translation mode which may impact performance.\n\nRecommendation: Download the native ARM64 version from our website for optimal performance.`,
-        };
-
-        const choice = dialog.showMessageBoxSync(null, dialogOpts);
+        const locale = getLocaleFromFullConfig(fullConfig);
+        const choice = dialog.showMessageBoxSync(null, makeArm64WarningDialog(locale));
         if (choice === 1) {
             // Open the documentation URL
             console.log("User chose to learn more");
