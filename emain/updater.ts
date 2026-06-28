@@ -1,6 +1,12 @@
 // Copyright 2025, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+import {
+    makeNoUpdatesDialog,
+    makeUpdateNotificationBody,
+    makeUpdateReadyDialog,
+} from "@/app/i18n/electron-ui";
+import { getLocaleFromFullConfig } from "@/app/i18n/main";
 import { dialog, ipcMain, Notification } from "electron";
 import { autoUpdater } from "electron-updater";
 import { readFileSync } from "fs";
@@ -92,14 +98,23 @@ export class Updater {
 
             // Display the update banner and create a system notification
             this.status = "ready";
-            const updateNotification = new Notification({
-                title: "Wave Terminal",
-                body: "A new version of Wave Terminal is ready to install.",
+            fireAndForget(async () => {
+                let locale = getLocaleFromFullConfig(null);
+                try {
+                    const fullConfig = await RpcApi.GetFullConfigCommand(ElectronWshClient);
+                    locale = getLocaleFromFullConfig(fullConfig);
+                } catch (e) {
+                    console.log("update-downloaded: error fetching config for locale", e);
+                }
+                const updateNotification = new Notification({
+                    title: "Wave Terminal",
+                    body: makeUpdateNotificationBody(locale),
+                });
+                updateNotification.on("click", () => {
+                    fireAndForget(this.promptToInstallUpdate.bind(this));
+                });
+                updateNotification.show();
             });
-            updateNotification.on("click", () => {
-                fireAndForget(this.promptToInstallUpdate.bind(this));
-            });
-            updateNotification.show();
         });
     }
 
@@ -161,12 +176,15 @@ export class Updater {
 
             // If the user requested this check and we do not have an available update, let them know with a popup dialog. No need to tell them if there is an update, because we show a banner once the update is ready to install.
             if (userInput && !result.downloadPromise) {
-                const dialogOpts: Electron.MessageBoxOptions = {
-                    type: "info",
-                    message: "There are currently no updates available.",
-                };
+                let locale = getLocaleFromFullConfig(null);
+                try {
+                    const fullConfig = await RpcApi.GetFullConfigCommand(ElectronWshClient);
+                    locale = getLocaleFromFullConfig(fullConfig);
+                } catch (e) {
+                    console.log("checkForUpdates: error fetching config for locale", e);
+                }
                 if (focusedWaveWindow) {
-                    dialog.showMessageBox(focusedWaveWindow, dialogOpts);
+                    dialog.showMessageBox(focusedWaveWindow, makeNoUpdatesDialog(locale));
                 }
             }
 
@@ -179,13 +197,19 @@ export class Updater {
      * Prompts the user to install the downloaded application update and restarts the application
      */
     async promptToInstallUpdate() {
-        const dialogOpts: Electron.MessageBoxOptions = {
-            type: "info",
-            buttons: ["Restart", "Later"],
-            title: "Application Update",
-            message: process.platform === "win32" ? this.availableUpdateReleaseNotes : this.availableUpdateReleaseName,
-            detail: "A new version has been downloaded. Restart the application to apply the updates.",
-        };
+        let locale = getLocaleFromFullConfig(null);
+        try {
+            const fullConfig = await RpcApi.GetFullConfigCommand(ElectronWshClient);
+            locale = getLocaleFromFullConfig(fullConfig);
+        } catch (e) {
+            console.log("promptToInstallUpdate: error fetching config for locale", e);
+        }
+        const dialogOpts = makeUpdateReadyDialog(
+            locale,
+            this.availableUpdateReleaseName,
+            this.availableUpdateReleaseNotes,
+            process.platform
+        );
 
         const allWindows = getAllWaveWindows();
         if (allWindows.length > 0) {

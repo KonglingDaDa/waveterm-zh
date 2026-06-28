@@ -1,6 +1,12 @@
 // Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+import {
+    makeCloseTabDialog,
+    makeCloseWindowDialog,
+    makeDeleteWorkspaceDialog,
+} from "@/app/i18n/electron-ui";
+import { getLocaleFromFullConfig } from "@/app/i18n/main";
 import { ClientService, ObjectService, WindowService, WorkspaceService } from "@/app/store/services";
 import { waveEventSubscribeSingle } from "@/app/store/wps";
 import { RpcApi } from "@/app/store/wshclientapi";
@@ -312,13 +318,8 @@ export class WaveBrowserWindow extends BaseWindow {
                     if (fullConfig.settings["window:confirmclose"]) {
                         const workspace = await WorkspaceService.GetWorkspace(this.workspaceId);
                         if (isNonEmptyUnsavedWorkspace(workspace)) {
-                            const choice = dialog.showMessageBoxSync(this, {
-                                type: "question",
-                                buttons: ["Cancel", "Close Window"],
-                                title: "Confirm",
-                                message:
-                                    "Window has unsaved tabs, closing window will delete existing tabs.\n\nContinue?",
-                            });
+                            const locale = getLocaleFromFullConfig(fullConfig);
+                            const choice = dialog.showMessageBoxSync(this, makeCloseWindowDialog(locale));
                             if (choice === 0) {
                                 return;
                             }
@@ -771,14 +772,14 @@ ipcMain.handle("close-tab", async (event, workspaceId: string, tabId: string, co
         return false;
     }
     if (confirmClose) {
-        const choice = dialog.showMessageBoxSync(ww, {
-            type: "question",
-            defaultId: 1, // Enter activates "Close Tab"
-            cancelId: 0, // Esc activates "Cancel"
-            buttons: ["Cancel", "Close Tab"],
-            title: "Confirm",
-            message: "Are you sure you want to close this tab?",
-        });
+        let locale = getLocaleFromFullConfig(null);
+        try {
+            const fullConfig = await RpcApi.GetFullConfigCommand(ElectronWshClient);
+            locale = getLocaleFromFullConfig(fullConfig);
+        } catch (e) {
+            console.log("close-tab: error fetching config for locale", e);
+        }
+        const choice = dialog.showMessageBoxSync(ww, makeCloseTabDialog(locale));
         if (choice === 0) {
             return false;
         }
@@ -823,12 +824,14 @@ ipcMain.on("delete-workspace", (event, workspaceId) => {
 
         const _workspaceHasWindow = !!workspaceList.find((wse) => wse.workspaceid === workspaceId)?.windowid;
 
-        const choice = dialog.showMessageBoxSync(this, {
-            type: "question",
-            buttons: ["Cancel", "Delete Workspace"],
-            title: "Confirm",
-            message: `Deleting workspace will also delete its contents.\n\nContinue?`,
-        });
+        let locale = getLocaleFromFullConfig(null);
+        try {
+            const fullConfig = await RpcApi.GetFullConfigCommand(ElectronWshClient);
+            locale = getLocaleFromFullConfig(fullConfig);
+        } catch (e) {
+            console.log("delete-workspace: error fetching config for locale", e);
+        }
+        const choice = dialog.showMessageBoxSync(this, makeDeleteWorkspaceDialog(locale));
         if (choice === 0) {
             console.log("user cancelled workspace delete", workspaceId, ww?.waveWindowId);
             return;

@@ -1,6 +1,8 @@
 // Copyright 2025, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+import { makeQuitConfirmDialog } from "@/app/i18n/electron-ui";
+import { getMainProcessLocale, updateMainProcessLocaleFromFullConfig } from "@/app/i18n/main";
 import { RpcApi } from "@/app/store/wshclientapi";
 import * as electron from "electron";
 import { focusedBuilderWindow, getAllBuilderWindows } from "emain/emain-builder";
@@ -275,14 +277,7 @@ electronApp.on("before-quit", (e) => {
         !process.env.WAVETERM_NOCONFIRMQUIT
     ) {
         e.preventDefault();
-        const choice = electron.dialog.showMessageBoxSync(null, {
-            type: "question",
-            buttons: ["Cancel", "Quit"],
-            title: "Confirm Quit",
-            message: "Are you sure you want to quit Wave Terminal?",
-            defaultId: 0,
-            cancelId: 0,
-        });
+        const choice = electron.dialog.showMessageBoxSync(null, makeQuitConfirmDialog(getMainProcessLocale()));
         if (choice === 0) {
             return;
         }
@@ -410,6 +405,7 @@ async function appMain() {
         console.log("error initializing wshrpc", e);
     }
     const fullConfig = await RpcApi.GetFullConfigCommand(ElectronWshClient);
+    updateMainProcessLocaleFromFullConfig(fullConfig);
     checkIfRunningUnderARM64Translation(fullConfig);
     if (fullConfig?.settings?.["app:confirmquit"] != null) {
         confirmQuit = fullConfig.settings["app:confirmquit"];
