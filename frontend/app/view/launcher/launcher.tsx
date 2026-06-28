@@ -3,6 +3,8 @@
 
 import logoUrl from "@/app/asset/logo.svg?url";
 import type { BlockNodeModel } from "@/app/block/blocktypes";
+import { t } from "@/app/i18n";
+import { useT } from "@/app/i18n/react";
 import { atoms, globalStore, replaceBlock } from "@/app/store/global";
 import type { TabModel } from "@/app/store/tab-model";
 import { checkKeyPressed, keydownWrapper } from "@/util/keyutil";
@@ -26,7 +28,7 @@ export class LauncherViewModel implements ViewModel {
     tabModel: TabModel;
     viewType = "launcher";
     viewIcon = atom("shapes");
-    viewName = atom("Widget Launcher");
+    viewName = atom((get) => t("Widget Launcher", undefined, get(atoms.localeAtom)));
     viewComponent = LauncherView;
     noHeader = atom(true);
     inputRef = { current: null } as React.RefObject<HTMLInputElement>;
@@ -138,6 +140,7 @@ export class LauncherViewModel implements ViewModel {
 }
 
 function LauncherView({ blockId, model }: ViewComponentProps<LauncherViewModel>) {
+    const tt = useT();
     // Search and selection state
     const [searchTerm, setSearchTerm] = useAtom(model.searchTerm);
     const [selectedIndex, setSelectedIndex] = useAtom(model.selectedIndex);
@@ -219,7 +222,7 @@ function LauncherView({ blockId, model }: ViewComponentProps<LauncherViewModel>)
                 onKeyDown={keydownWrapper(model.keyDownHandler.bind(model))}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="sr-only dummy"
-                aria-label="Search widgets"
+                aria-label={tt("Search widgets")}
             />
 
             {/* Logo */}
@@ -272,11 +275,12 @@ function LauncherView({ blockId, model }: ViewComponentProps<LauncherViewModel>)
             {/* Search instructions */}
             <div className="mt-4 text-secondary text-xs">
                 {filteredWidgets.length === 0 ? (
-                    <span>No widgets found. Press Escape to clear search.</span>
+                    <span>{tt("No widgets found. Press Escape to clear search.")}</span>
                 ) : (
                     <span>
-                        {searchTerm == "" ? "Type to Filter" : "Searching " + '"' + searchTerm + '"'}, Enter to Launch,
-                        {searchTerm == "" ? "Arrow Keys to Navigate" : null}
+                        {searchTerm === ""
+                            ? `${tt("Type to Filter")}, ${tt("Enter to Launch")}, ${tt("Arrow Keys to Navigate")}`
+                            : `${tt('Searching "{search}"', { search: searchTerm })}, ${tt("Enter to Launch")}`}
                     </span>
                 )}
             </div>

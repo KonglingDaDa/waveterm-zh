@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Tooltip } from "@/app/element/tooltip";
+import { resolveLocale, supportedLocales, type Locale } from "@/app/i18n";
+import { useT } from "@/app/i18n/react";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { useWaveEnv, WaveEnv, WaveEnvSubset } from "@/app/waveenv/waveenv";
 import { shouldIncludeWidgetForWorkspace } from "@/app/workspace/widgetfilter";
@@ -27,6 +29,7 @@ export type WidgetsEnv = WaveEnvSubset<{
     };
     rpc: {
         ListAllAppsCommand: WaveEnv["rpc"]["ListAllAppsCommand"];
+        SetConfigCommand: WaveEnv["rpc"]["SetConfigCommand"];
     };
     atoms: {
         fullConfigAtom: WaveEnv["atoms"]["fullConfigAtom"];
@@ -109,15 +112,16 @@ function calculateGridSize(appCount: number): number {
 }
 
 function SettingsTooltipContent({ hasConfigErrors }: { hasConfigErrors: boolean }) {
+    const tt = useT();
     if (!hasConfigErrors) {
-        return "Settings & Help";
+        return tt("Settings & Help");
     }
     return (
         <div className="flex flex-col p-1">
-            <div className="mb-1">Settings &amp; Help</div>
+            <div className="mb-1">{tt("Settings & Help")}</div>
             <div className="flex items-center gap-1 mt-0.5 text-error">
                 <i className="fa fa-solid fa-circle-exclamation"></i>
-                <span>Config Errors</span>
+                <span>{tt("Config Errors")}</span>
             </div>
         </div>
     );
@@ -134,6 +138,7 @@ const AppsFloatingWindow = memo(({ isOpen, onClose, referenceElement }: Floating
     const [apps, setApps] = useState<AppInfo[]>([]);
     const [loading, setLoading] = useState(true);
     const env = useWaveEnv<WidgetsEnv>();
+    const tt = useT();
 
     const { refs, floatingStyles, context } = useFloating({
         open: isOpen,
@@ -197,7 +202,7 @@ const AppsFloatingWindow = memo(({ isOpen, onClose, referenceElement }: Floating
                             <i className="fa fa-solid fa-spinner fa-spin text-2xl text-muted"></i>
                         </div>
                     ) : apps.length === 0 ? (
-                        <div className="text-muted text-sm p-4 text-center">No local apps found</div>
+                        <div className="text-muted text-sm p-4 text-center">{tt("No local apps found")}</div>
                     ) : (
                         <div
                             className="grid gap-3"
@@ -246,7 +251,7 @@ const AppsFloatingWindow = memo(({ isOpen, onClose, referenceElement }: Floating
                     onClick={handleOpenBuilder}
                 >
                     <i className="fa fa-solid fa-hammer"></i>
-                    Build/Edit Apps
+                    {tt("Build/Edit Apps")}
                 </button>
             </div>
         </FloatingPortal>
@@ -256,6 +261,9 @@ const AppsFloatingWindow = memo(({ isOpen, onClose, referenceElement }: Floating
 const SettingsFloatingWindow = memo(
     ({ isOpen, onClose, referenceElement, hasConfigErrors }: FloatingWindowPropsType) => {
         const env = useWaveEnv<WidgetsEnv>();
+        const tt = useT();
+        const fullConfig = useAtomValue(env.atoms.fullConfigAtom);
+        const [showLanguageMenu, setShowLanguageMenu] = useState(false);
         const { refs, floatingStyles, context } = useFloating({
             open: isOpen,
             onOpenChange: onClose,
@@ -270,12 +278,28 @@ const SettingsFloatingWindow = memo(
         const dismiss = useDismiss(context);
         const { getFloatingProps } = useInteractions([dismiss]);
 
+        useEffect(() => {
+            if (!isOpen) {
+                setShowLanguageMenu(false);
+            }
+        }, [isOpen]);
+
         if (!isOpen) return null;
+
+        const selectedLocale: Locale = resolveLocale(fullConfig?.settings?.["app:locale"]);
+
+        const handleLocaleSelect = (locale: Locale) => {
+            const settings: SettingsType = { "app:locale": locale };
+            fireAndForget(async () => {
+                await env.rpc.SetConfigCommand(TabRpcClient, settings);
+            });
+            onClose();
+        };
 
         const menuItems = [
             {
                 icon: "gear",
-                label: "Settings",
+                label: tt("Settings"),
                 hasError: hasConfigErrors,
                 onClick: () => {
                     const blockDef: BlockDef = {
@@ -289,7 +313,7 @@ const SettingsFloatingWindow = memo(
             },
             {
                 icon: "lightbulb",
-                label: "Tips",
+                label: tt("Tips"),
                 onClick: () => {
                     const blockDef: BlockDef = {
                         meta: {
@@ -302,7 +326,7 @@ const SettingsFloatingWindow = memo(
             },
             {
                 icon: "lock",
-                label: "Secrets",
+                label: tt("Secrets"),
                 onClick: () => {
                     const blockDef: BlockDef = {
                         meta: {
@@ -316,7 +340,7 @@ const SettingsFloatingWindow = memo(
             },
             {
                 icon: "book-open",
-                label: "Release Notes",
+                label: tt("Release Notes"),
                 onClick: () => {
                     modalsModel.pushModal("UpgradeOnboardingPatch", { isReleaseNotes: true });
                     onClose();
@@ -324,7 +348,7 @@ const SettingsFloatingWindow = memo(
             },
             {
                 icon: "circle-question",
-                label: "Help",
+                label: tt("Help"),
                 onClick: () => {
                     const blockDef: BlockDef = {
                         meta: {
@@ -333,6 +357,13 @@ const SettingsFloatingWindow = memo(
                     };
                     env.createBlock(blockDef);
                     onClose();
+                },
+            },
+            {
+                icon: "language",
+                label: tt("Language"),
+                onClick: () => {
+                    setShowLanguageMenu(true);
                 },
             },
         ];
@@ -345,21 +376,65 @@ const SettingsFloatingWindow = memo(
                     {...getFloatingProps()}
                     className="bg-modalbg border border-border rounded-lg shadow-xl p-2 z-50"
                 >
-                    {menuItems.map((item, idx) => (
-                        <div
-                            key={idx}
-                            className="flex items-center gap-3 px-3 py-2 rounded hover:bg-hoverbg cursor-pointer transition-colors text-secondary hover:text-white"
-                            onClick={item.onClick}
-                        >
-                            <div className="text-lg w-5 flex justify-center">
-                                <i className={makeIconClass(item.icon, false)}></i>
+                    {showLanguageMenu ? (
+                        <>
+                            <div
+                                className="flex items-center gap-3 px-3 py-2 rounded hover:bg-hoverbg cursor-pointer transition-colors text-secondary hover:text-white"
+                                onClick={() => setShowLanguageMenu(false)}
+                            >
+                                <div className="text-lg w-5 flex justify-center">
+                                    <i className={makeIconClass("arrow-left", false)}></i>
+                                </div>
+                                <div className="text-sm whitespace-nowrap">{tt("Back")}</div>
                             </div>
-                            <div className="text-sm whitespace-nowrap">{item.label}</div>
-                            {item.hasError && (
-                                <i className="fa fa-solid fa-circle-exclamation text-error text-[14px] ml-auto"></i>
-                            )}
-                        </div>
-                    ))}
+                            <div className="border-t border-border mt-1 pt-1">
+                                <div className="flex items-center gap-3 px-3 py-1.5 text-muted">
+                                    <div className="text-lg w-5 flex justify-center">
+                                        <i className={makeIconClass("language", false)}></i>
+                                    </div>
+                                    <div className="text-xs font-semibold uppercase tracking-wide whitespace-nowrap">
+                                        {tt("Language")}
+                                    </div>
+                                </div>
+                                {supportedLocales.map((option) => {
+                                    const selected = selectedLocale === option.locale;
+                                    return (
+                                        <div
+                                            key={option.locale}
+                                            className={clsx(
+                                                "flex items-center gap-3 px-3 py-2 rounded cursor-pointer transition-colors",
+                                                selected
+                                                    ? "bg-hoverbg text-white"
+                                                    : "text-secondary hover:bg-hoverbg hover:text-white"
+                                            )}
+                                            onClick={() => handleLocaleSelect(option.locale)}
+                                        >
+                                            <div className="text-lg w-5 flex justify-center">
+                                                {selected ? <i className={makeIconClass("check", false)}></i> : null}
+                                            </div>
+                                            <div className="text-sm whitespace-nowrap">{tt(option.label)}</div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </>
+                    ) : (
+                        menuItems.map((item, idx) => (
+                            <div
+                                key={idx}
+                                className="flex items-center gap-3 px-3 py-2 rounded hover:bg-hoverbg cursor-pointer transition-colors text-secondary hover:text-white"
+                                onClick={item.onClick}
+                            >
+                                <div className="text-lg w-5 flex justify-center">
+                                    <i className={makeIconClass(item.icon, false)}></i>
+                                </div>
+                                <div className="text-sm whitespace-nowrap">{item.label}</div>
+                                {item.hasError && (
+                                    <i className="fa fa-solid fa-circle-exclamation text-error text-[14px] ml-auto"></i>
+                                )}
+                            </div>
+                        ))
+                    )}
                 </div>
             </FloatingPortal>
         );
@@ -370,6 +445,7 @@ SettingsFloatingWindow.displayName = "SettingsFloatingWindow";
 
 const Widgets = memo(() => {
     const env = useWaveEnv<WidgetsEnv>();
+    const tt = useT();
     const fullConfig = useAtomValue(env.atoms.fullConfigAtom);
     const hasConfigErrors = useAtomValue(env.atoms.hasConfigErrors);
     const workspaceId = useAtomValue(env.atoms.workspaceId);
@@ -438,7 +514,7 @@ const Widgets = memo(() => {
         e.preventDefault();
         const menu: ContextMenuItem[] = [
             {
-                label: "Edit widgets.json",
+                label: tt("Edit widgets.json"),
                 click: () => {
                     fireAndForget(async () => {
                         const blockDef: BlockDef = {
@@ -477,7 +553,7 @@ const Widgets = memo(() => {
                                     className="flex flex-col justify-center items-center w-full py-1.5 pr-0.5 text-secondary text-sm overflow-hidden rounded-sm hover:bg-hoverbg hover:text-white cursor-pointer"
                                     onClick={() => setIsAppsOpen(!isAppsOpen)}
                                 >
-                                    <Tooltip content="Local WaveApps" placement="left" disable={isAppsOpen}>
+                                    <Tooltip content={tt("Local WaveApps")} placement="left" disable={isAppsOpen}>
                                         <div>
                                             <i className={makeIconClass("cube", true)}></i>
                                         </div>
@@ -516,14 +592,14 @@ const Widgets = memo(() => {
                                 className="flex flex-col justify-center items-center w-full py-1.5 pr-0.5 text-secondary text-lg overflow-hidden rounded-sm hover:bg-hoverbg hover:text-white cursor-pointer"
                                 onClick={() => setIsAppsOpen(!isAppsOpen)}
                             >
-                                <Tooltip content="Local WaveApps" placement="left" disable={isAppsOpen}>
+                                <Tooltip content={tt("Local WaveApps")} placement="left" disable={isAppsOpen}>
                                     <div className="flex flex-col items-center w-full">
                                         <div>
                                             <i className={makeIconClass("cube", true)}></i>
                                         </div>
                                         {mode === "normal" && (
                                             <div className="text-xxs mt-0.5 w-full px-0.5 text-center whitespace-nowrap overflow-hidden text-ellipsis">
-                                                apps
+                                                {tt("apps")}
                                             </div>
                                         )}
                                     </div>
@@ -551,7 +627,7 @@ const Widgets = memo(() => {
                                     </div>
                                     {mode === "normal" && (
                                         <div className="text-xxs mt-0.5 w-full px-0.5 text-center whitespace-nowrap overflow-hidden text-ellipsis">
-                                            settings
+                                            {tt("settings")}
                                         </div>
                                     )}
                                 </div>

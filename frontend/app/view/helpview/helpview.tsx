@@ -1,6 +1,8 @@
 // Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+import { t } from "@/app/i18n";
+import { atoms } from "@/app/store/global-atoms";
 import { globalStore, WOS } from "@/app/store/global";
 import { RpcApi } from "@/app/store/wshclientapi";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
@@ -43,7 +45,7 @@ class HelpViewModel extends WebViewModel {
         this.homepageUrl = atom(docsiteUrl);
         this.viewType = "help";
         this.viewIcon = atom("circle-question");
-        this.viewName = atom("Help");
+        this.viewName = atom((get) => t("Help", undefined, get(atoms.localeAtom)));
     }
 
     setZoomFactor(factor: number | null) {
