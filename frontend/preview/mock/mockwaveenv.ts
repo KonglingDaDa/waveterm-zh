@@ -1,6 +1,7 @@
 // Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+import { normalizeLocale } from "@/app/i18n";
 import { makeDefaultConnStatus } from "@/app/store/global";
 import { globalStore } from "@/app/store/jotaiStore";
 import { AllServiceTypes } from "@/app/store/services";
@@ -171,6 +172,10 @@ function makeMockGlobalAtoms(
         fullConfigAtom,
         waveaiModeConfigAtom: atom({}) as any,
         settingsAtom,
+        localeAtom: atom((get) => {
+            const settings = get(settingsAtom);
+            return normalizeLocale(settings?.["app:locale"]) ?? "en-US";
+        }),
         hasCustomAIPresetsAtom: atom(false),
         hasConfigErrors: atom((get) => {
             const c = get(fullConfigAtom);
