@@ -5,6 +5,14 @@ import { getThinkingMessage } from "@/app/aipanel/aimessage";
 import { formatFileSizeError } from "@/app/aipanel/ai-utils";
 import { getModeDisplayDescription, getModeDisplayName } from "@/app/aipanel/ai-utils";
 import {
+    localizeAIModeDisplayDescription,
+    localizeAIModeDisplayName,
+    localizeBackgroundName,
+    localizeTermThemeName,
+    localizeWidgetLabel,
+    widgetMatchesSearch,
+} from "@/app/i18n/display-names";
+import {
     formatPreviewConnectionError,
     makeBookmarkMenuLabel,
 } from "@/app/view/preview/preview-ui";
@@ -204,6 +212,33 @@ describe("locale slice", () => {
 
         expect(makeProcessSignalStatusMessage(42, "SIGTERM", true, "zh-CN")).toBe("进程 #42 已结束");
         expect(makeProcessSignalStatusMessage(42, "SIGTERM", false, "en-US")).toBe("Process #42 sent SIGTERM");
+    });
+
+    it("display-names localize system presets and preserve custom fallbacks", () => {
+        expect(localizeBackgroundName("bg@rainbow", "Rainbow", "zh-CN")).toBe("彩虹");
+        expect(localizeBackgroundName("bg@user-custom", "My Background", "zh-CN")).toBe("My Background");
+
+        expect(localizeTermThemeName("default-dark", "Default Dark", "zh-CN")).toBe("默认深色");
+        expect(localizeTermThemeName("dracula", "Dracula", "zh-CN")).toBe("Dracula");
+        expect(localizeTermThemeName("my-theme", "My Theme", "zh-CN")).toBe("My Theme");
+
+        expect(localizeWidgetLabel("defwidget@terminal", "terminal", "zh-CN")).toBe("终端");
+        expect(localizeWidgetLabel("mywidget@custom", "My Widget", "zh-CN")).toBe("My Widget");
+
+        expect(localizeAIModeDisplayName("waveai@quick", "Quick", "zh-CN")).toBe("快速");
+        expect(localizeAIModeDisplayDescription("waveai@quick", "Fastest responses (gpt-5-mini)", "zh-CN")).toBe(
+            "最快响应（gpt-5-mini）"
+        );
+        expect(getModeDisplayName({ "display:name": "My Custom Mode" }, { modeId: "ai@custom", locale: "zh-CN" })).toBe(
+            "My Custom Mode"
+        );
+    });
+
+    it("widgetMatchesSearch matches zh-CN labels and English aliases", () => {
+        const widget = { label: "terminal", blockdef: { meta: { view: "term" } } } as WidgetConfigType;
+        expect(widgetMatchesSearch("defwidget@terminal", widget, "终端", "zh-CN")).toBe(true);
+        expect(widgetMatchesSearch("defwidget@terminal", widget, "terminal", "zh-CN")).toBe(true);
+        expect(widgetMatchesSearch("defwidget@terminal", widget, "文件", "zh-CN")).toBe(false);
     });
 
     it("launcher instruction keys differ by locale", () => {

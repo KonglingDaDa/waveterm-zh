@@ -2,8 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Tooltip } from "@/app/element/tooltip";
+import { localizeWidgetDescription, localizeWidgetLabel, sortWidgetEntriesByDisplayOrder } from "@/app/i18n/display-names";
 import { resolveLocale, supportedLocales, type Locale } from "@/app/i18n";
-import { useT } from "@/app/i18n/react";
+import { useLocale, useT } from "@/app/i18n/react";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { useWaveEnv, WaveEnv, WaveEnvSubset } from "@/app/waveenv/waveenv";
 import { shouldIncludeWidgetForWorkspace } from "@/app/workspace/widgetfilter";
@@ -41,18 +42,8 @@ export type WidgetsEnv = WaveEnvSubset<{
     showContextMenu: WaveEnv["showContextMenu"];
 }>;
 
-function sortByDisplayOrder(wmap: { [key: string]: WidgetConfigType }): WidgetConfigType[] {
-    if (wmap == null) {
-        return [];
-    }
-    const wlist = Object.values(wmap);
-    wlist.sort((a, b) => {
-        return (a["display:order"] ?? 0) - (b["display:order"] ?? 0);
-    });
-    return wlist;
-}
-
 type WidgetPropsType = {
+    widgetId: string;
     widget: WidgetConfigType;
     mode: "normal" | "compact" | "supercompact";
     env: WidgetsEnv;
@@ -63,7 +54,11 @@ async function handleWidgetSelect(widget: WidgetConfigType, env: WidgetsEnv) {
     env.createBlock(blockDef, widget.magnified);
 }
 
-const Widget = memo(({ widget, mode, env }: WidgetPropsType) => {
+const Widget = memo(({ widgetId, widget, mode, env }: WidgetPropsType) => {
+    const locale = useLocale();
+    const displayLabel = localizeWidgetLabel(widgetId, widget.label ?? "", locale);
+    const displayDescription =
+        localizeWidgetDescription(widgetId, widget.description, locale) || displayLabel;
     const [isTruncated, setIsTruncated] = useState(false);
     const labelRef = useRef<HTMLDivElement>(null);
 
@@ -72,13 +67,13 @@ const Widget = memo(({ widget, mode, env }: WidgetPropsType) => {
             const element = labelRef.current;
             setIsTruncated(element.scrollWidth > element.clientWidth);
         }
-    }, [mode, widget.label]);
+    }, [mode, displayLabel]);
 
     const shouldDisableTooltip = mode !== "normal" ? false : !isTruncated;
 
     return (
         <Tooltip
-            content={widget.description || widget.label}
+            content={displayDescription}
             placement="left"
             disable={shouldDisableTooltip}
             divClassName={clsx(
@@ -91,12 +86,12 @@ const Widget = memo(({ widget, mode, env }: WidgetPropsType) => {
             <div style={{ color: widget.color }}>
                 <i className={makeIconClass(widget.icon, true, { defaultIcon: "browser" })}></i>
             </div>
-            {mode === "normal" && !isBlank(widget.label) ? (
+            {mode === "normal" && !isBlank(displayLabel) ? (
                 <div
                     ref={labelRef}
                     className="text-xxs mt-0.5 w-full px-0.5 text-center whitespace-nowrap overflow-hidden text-ellipsis"
                 >
-                    {widget.label}
+                    {displayLabel}
                 </div>
             ) : null}
         </Tooltip>
@@ -458,7 +453,9 @@ const Widgets = memo(() => {
     const filteredWidgets = Object.fromEntries(
         Object.entries(widgetsMap).filter(([_key, widget]) => shouldIncludeWidgetForWorkspace(widget, workspaceId))
     );
-    const widgets = sortByDisplayOrder(filteredWidgets);
+    const widgetEntries = sortWidgetEntriesByDisplayOrder(
+        Object.entries(filteredWidgets).map(([id, widget]) => ({ id, widget }))
+    );
 
     const [isAppsOpen, setIsAppsOpen] = useState(false);
     const appsButtonRef = useRef<HTMLDivElement>(null);
@@ -478,7 +475,7 @@ const Widgets = memo(() => {
             newMode = "compact";
 
             // Calculate total widget count for supercompact check
-            const totalWidgets = (widgets?.length || 0) + 1;
+            const totalWidgets = (widgetEntries?.length || 0) + 1;
             const minHeightPerWidget = 32;
             const requiredHeight = totalWidgets * minHeightPerWidget;
 
@@ -490,7 +487,7 @@ const Widgets = memo(() => {
         if (newMode !== mode) {
             setMode(newMode);
         }
-    }, [mode, widgets]);
+    }, [mode, widgetEntries]);
 
     useEffect(() => {
         const resizeObserver = new ResizeObserver(() => {
@@ -508,7 +505,7 @@ const Widgets = memo(() => {
 
     useEffect(() => {
         checkModeNeeded();
-    }, [widgets, checkModeNeeded]);
+    }, [widgetEntries, checkModeNeeded]);
 
     const handleWidgetsBarContextMenu = (e: React.MouseEvent) => {
         e.preventDefault();
@@ -541,8 +538,8 @@ const Widgets = memo(() => {
                 {mode === "supercompact" ? (
                     <>
                         <div className="grid grid-cols-2 gap-0 w-full">
-                            {widgets?.map((data, idx) => (
-                                <Widget key={`widget-${idx}`} widget={data} mode={mode} env={env} />
+                            {widgetEntries?.map(({ id, widget }) => (
+                                <Widget key={id} widgetId={id} widget={widget} mode={mode} env={env} />
                             ))}
                         </div>
                         <div className="flex-grow" />
@@ -582,8 +579,8 @@ const Widgets = memo(() => {
                     </>
                 ) : (
                     <>
-                        {widgets?.map((data, idx) => (
-                            <Widget key={`widget-${idx}`} widget={data} mode={mode} env={env} />
+                        {widgetEntries?.map(({ id, widget }) => (
+                            <Widget key={id} widgetId={id} widget={widget} mode={mode} env={env} />
                         ))}
                         <div className="flex-grow" />
                         {env.isDev() || featureWaveAppBuilder ? (
@@ -664,8 +661,8 @@ const Widgets = memo(() => {
                 ref={measurementRef}
                 className="flex flex-col w-12 py-1 -ml-1 select-none absolute -z-10 opacity-0 pointer-events-none"
             >
-                {widgets?.map((data, idx) => (
-                    <Widget key={`measurement-widget-${idx}`} widget={data} mode="normal" env={env} />
+                {widgetEntries?.map(({ id, widget }) => (
+                    <Widget key={`measurement-${id}`} widgetId={id} widget={widget} mode="normal" env={env} />
                 ))}
                 <div className="flex-grow" />
                 <div className="flex flex-col justify-center items-center w-full py-1.5 pr-0.5 text-lg">

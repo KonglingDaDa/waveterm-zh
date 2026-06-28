@@ -664,4 +664,33 @@ export const zhCN: I18nCatalog = {
         "此复制操作将覆盖现有文件。是否继续？",
     "Unable to determine mimetype for: {path}": "无法确定 MIME 类型：{path}",
     "Waiting for connection...": "正在等待连接...",
+    // Background presets
+    Rainbow: "彩虹",
+    "Ocean Depths": "海洋深处",
+    "Aqua Horizon": "水色地平线",
+    Sunset: "日落",
+    "Enchanted Forest": "魔法森林",
+    "Twilight Mist": "暮色薄雾",
+    "Dusk Horizon": "黄昏地平线",
+    "Tropical Radiance": "热带光辉",
+    "Twilight Ember": "暮色余烬",
+    "Cosmic Tide": "宇宙潮汐",
+    // Terminal theme presets
+    "Default Dark": "默认深色",
+    "Warm Yellow": "暖黄色",
+    // Widget presets
+    terminal: "终端",
+    files: "文件",
+    web: "网页",
+    sysinfo: "系统信息",
+    processes: "进程",
+    // Wave AI cloud mode presets
+    Quick: "快速",
+    Balanced: "均衡",
+    Deep: "深度",
+    "Fastest responses (gpt-5-mini)": "最快响应（gpt-5-mini）",
+    "Good mix of speed and accuracy\n(gpt-5.1 with minimal thinking)":
+        "速度与准确性的良好平衡\n（gpt-5.1，minimal thinking）",
+    "Slower but most capable\n(gpt-5.1 with full reasoning)":
+        "速度较慢但能力最强\n（gpt-5.1，full reasoning）",
 };

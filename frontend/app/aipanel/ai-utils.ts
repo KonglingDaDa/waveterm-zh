@@ -1,6 +1,7 @@
 // Copyright 2025, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+import { localizeAIModeDisplayDescription, localizeAIModeDisplayName } from "@/app/i18n/display-names";
 import { t, type Locale } from "@/app/i18n";
 import { sortByDisplayOrder } from "@/util/util";
 
@@ -585,17 +586,6 @@ export const getFilteredAIModeConfigs = (
     };
 };
 
-const BUILTIN_AI_MODE_I18N: Record<string, { nameKey: string; descriptionKey?: string }> = {
-    "waveaibuilder@default": {
-        nameKey: "Builder Default",
-        descriptionKey: "Good mix of speed and accuracy\n(gpt-5.4 with minimal thinking)",
-    },
-    "waveaibuilder@deep": {
-        nameKey: "Builder Deep",
-        descriptionKey: "Slower but most capable\n(gpt-5.4 with full reasoning)",
-    },
-};
-
 export type ModeDisplayOpts = {
     modeId?: string;
     locale?: Locale;
@@ -603,13 +593,16 @@ export type ModeDisplayOpts = {
 
 /**
  * Get the display name for an AI mode configuration.
- * Built-in builder modes use i18n when locale is provided; user custom modes fall back to display:name.
+ * System waveai@* / waveaibuilder@* presets use i18n; user custom modes fall back to display:name.
  */
 export function getModeDisplayName(config: AIModeConfigType, opts?: ModeDisplayOpts): string {
     const modeId = opts?.modeId;
     const locale = opts?.locale;
-    if (modeId && locale && BUILTIN_AI_MODE_I18N[modeId]) {
-        return t(BUILTIN_AI_MODE_I18N[modeId].nameKey, undefined, locale);
+    if (modeId && locale) {
+        const localized = localizeAIModeDisplayName(modeId, config["display:name"], locale);
+        if (localized) {
+            return localized;
+        }
     }
     if (config["display:name"]) {
         return config["display:name"];
@@ -630,10 +623,7 @@ export function getModeDisplayDescription(config: AIModeConfigType, opts?: ModeD
     const modeId = opts?.modeId;
     const locale = opts?.locale;
     if (modeId && locale) {
-        const descriptionKey = BUILTIN_AI_MODE_I18N[modeId]?.descriptionKey;
-        if (descriptionKey) {
-            return t(descriptionKey, undefined, locale);
-        }
+        return localizeAIModeDisplayDescription(modeId, config["display:description"], locale);
     }
     return config["display:description"] ?? null;
 }

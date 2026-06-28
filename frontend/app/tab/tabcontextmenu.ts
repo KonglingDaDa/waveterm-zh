@@ -1,6 +1,7 @@
 // Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+import { localizeBackgroundName } from "@/app/i18n/display-names";
 import { t, type Locale } from "@/app/i18n";
 import { getOrefMetaKeyAtom, globalStore, recordTEvent } from "@/app/store/global";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
@@ -106,7 +107,7 @@ export function buildTabContextMenu(
         for (const bgKey of bgKeys) {
             const bg = backgrounds[bgKey];
             submenu.push({
-                label: bg["display:name"] ?? bgKey,
+                label: localizeBackgroundName(bgKey, bg["display:name"] ?? bgKey, locale),
                 click: () =>
                     fireAndForget(async () => {
                         await env.rpc.SetMetaCommand(TabRpcClient, {

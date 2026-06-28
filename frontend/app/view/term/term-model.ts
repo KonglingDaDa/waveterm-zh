@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { WaveAIModel } from "@/app/aipanel/waveai-model";
+import { localizeTermThemeName } from "@/app/i18n/display-names";
 import { t, type I18nParams, type Locale } from "@/app/i18n";
 import { BlockNodeModel } from "@/app/block/blocktypes";
 import { appHandleKeyDown } from "@/app/store/keymodel";
@@ -1036,7 +1037,11 @@ export class TermViewModel implements ViewModel {
 
         const submenu: ContextMenuItem[] = termThemeKeys.map((themeName) => {
             return {
-                label: termThemes[themeName]["display:name"] ?? themeName,
+                label: localizeTermThemeName(
+                    themeName,
+                    termThemes[themeName]["display:name"] ?? themeName,
+                    locale
+                ),
                 type: "checkbox",
                 checked: curThemeName == themeName,
                 click: () => this.setTerminalTheme(themeName),
