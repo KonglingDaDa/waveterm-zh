@@ -8,6 +8,8 @@ import * as child_process from "node:child_process";
 import * as path from "path";
 import { PNG } from "pngjs";
 import { Readable } from "stream";
+import { makeSaveScrollbackDialog } from "../frontend/app/i18n/electron-ui";
+import { getMainProcessLocale } from "../frontend/app/i18n/main";
 import { RpcApi } from "../frontend/app/store/wshclientapi";
 import { getWebServerEndpoint } from "../frontend/util/endpoints";
 import * as keyutil from "../frontend/util/keyutil";
@@ -513,11 +515,11 @@ export function initIpcHandlers() {
         if (ww == null) {
             return false;
         }
-        const result = await electron.dialog.showSaveDialog(ww, {
-            title: "Save Scrollback",
-            defaultPath: fileName || "session.log",
-            filters: [{ name: "Text Files", extensions: ["txt", "log"] }],
-        });
+        const locale = getMainProcessLocale();
+        const result = await electron.dialog.showSaveDialog(
+            ww,
+            makeSaveScrollbackDialog(locale, fileName || "session.log")
+        );
         if (result.canceled || !result.filePath) {
             return false;
         }

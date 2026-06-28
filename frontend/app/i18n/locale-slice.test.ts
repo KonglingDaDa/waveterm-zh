@@ -31,6 +31,7 @@ import {
     makeCloseTabDialog,
     makeDeleteWorkspaceDialog,
     makeQuitConfirmDialog,
+    makeSaveScrollbackDialog,
     menuLabel,
 } from "./electron-ui";
 import { getLocaleFromFullConfig, getMainProcessLocale, setMainProcessLocale } from "./main";
@@ -170,6 +171,26 @@ describe("locale slice", () => {
             "保存会话回滚内容失败：disk full"
         );
         expect(t("Ok", undefined, "zh-CN")).toBe("确定");
+    });
+
+    it("save scrollback native dialog options differ by locale", () => {
+        const enDialog = makeSaveScrollbackDialog("en-US", "session.log");
+        const zhDialog = makeSaveScrollbackDialog("zh-CN", "session.log");
+        expect(enDialog.title).toBe("Save Scrollback");
+        expect(zhDialog.title).toBe("保存回滚内容");
+        expect(enDialog.buttonLabel).toBe("Save");
+        expect(zhDialog.buttonLabel).toBe("保存");
+        expect(enDialog.filters?.[0].name).toBe("Text Files");
+        expect(zhDialog.filters?.[0].name).toBe("文本文件");
+        expect(enDialog.defaultPath).toBe("session.log");
+        expect(zhDialog.defaultPath).toBe("session.log");
+        expect(enDialog.filters?.[0].extensions).toEqual(["txt", "log"]);
+    });
+
+    it("save scrollback dialog falls back to English for unknown locale", () => {
+        const dialog = makeSaveScrollbackDialog("en-US", "my-session.log");
+        expect(dialog.title).toBe("Save Scrollback");
+        expect(dialog.defaultPath).toBe("my-session.log");
     });
 
     it("builder built-in mode display names translate with user custom fallback", () => {

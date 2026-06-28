@@ -1,7 +1,7 @@
 // Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import type { MessageBoxOptions } from "electron";
+import type { MessageBoxOptions, SaveDialogOptions } from "electron";
 import { t, type Locale } from "./index";
 
 export function menuLabel(key: string, locale: Locale): string {
@@ -89,4 +89,13 @@ export function makeArm64WarningDialog(locale: Locale): MessageBoxOptions {
 
 export function makeUpdateNotificationBody(locale: Locale): string {
     return t("A new version of Wave Terminal is ready to install.", undefined, locale);
+}
+
+export function makeSaveScrollbackDialog(locale: Locale, defaultPath: string): SaveDialogOptions {
+    return {
+        title: t("Save Scrollback", undefined, locale),
+        defaultPath,
+        buttonLabel: t("Save", undefined, locale),
+        filters: [{ name: t("Text Files", undefined, locale), extensions: ["txt", "log"] }],
+    };
 }
