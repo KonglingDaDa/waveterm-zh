@@ -156,7 +156,9 @@ Workflow 文件：`.github/workflows/release-zh.yml`。
 |------|------|
 | macOS | DMG、ZIP（arm64、x64） |
 | Windows | MSI、NSIS 安装包、ZIP |
-| Linux | DEB、RPM、AppImage、Snap、Pacman、ZIP（amd64 / arm64 按 runner 区分） |
+| Linux | DEB、RPM、AppImage、Pacman、ZIP（amd64 / arm64 按 runner 区分） |
+
+CI **不构建 Snap**：Snapcraft 9 与 electron-builder 不兼容（`snap` 命令已改名为 `pack`）。Deb/AppImage 等已覆盖主流 Linux 安装方式。
 
 ### 签名与分发说明
 
@@ -239,6 +241,12 @@ git push --force-with-lease origin main:zh-cn
 | push 到 `main` / `zh-cn` | 不触发 Release 打包 |
 | push tag `v*-zh*` | **已不再**自动触发（已改为仅手动 workflow） |
 | 手动 Run **Release zh-CN Build** | 触发跨平台打包 |
+
+### 发布失败后重跑
+
+- 某次 workflow **失败后不会自动继续**；`create-release` 只在 4 个 build job 全部成功后才执行。
+- 修复 workflow 并 push 后，需在 Actions **重新手动 Run workflow**（不能用旧 run 续跑）。
+- 建议使用新 tag（如 `v0.14.5-zh.2`）；若复用已存在 tag，需先在 GitHub 删除旧 Release/tag 或接受覆盖行为。
 
 ### 修改分支保护时请注意
 

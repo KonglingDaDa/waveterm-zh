@@ -1,5 +1,6 @@
 # Build and publish waveterm-zh release packages to GitHub Releases.
-# Mirrors upstream artifact formats (DMG/ZIP, MSI/NSIS/ZIP, DEB/RPM/AppImage/Snap/Pacman/ZIP).
+# Mirrors upstream artifact formats (DMG/ZIP, MSI/NSIS/ZIP, DEB/RPM/AppImage/Pacman/ZIP).
+# Linux Snap is omitted in CI: Snapcraft 9 renamed `snap` → `pack`, incompatible with electron-builder.
 # Unsigned builds — no upstream code-signing secrets required.
 
 name: Release zh-CN Build
@@ -50,10 +51,6 @@ jobs:
               run: |
                   sudo apt-get update
                   sudo apt-get install --no-install-recommends -y libarchive-tools libopenjp2-tools rpm squashfs-tools zip
-                  sudo snap install snapcraft --classic
-                  sudo snap install lxd
-                  sudo lxd init --auto
-                  sudo snap refresh
 
             - name: Install Zig (Linux and Windows)
               if: matrix.platform != 'darwin'
@@ -95,11 +92,18 @@ jobs:
                   version: 3.x
                   repo-token: ${{ secrets.GITHUB_TOKEN }}
 
-            - name: Build packages
+            - name: Build packages (Linux)
+              if: matrix.platform == 'linux'
+              run: task package -- --linux zip deb rpm AppImage pacman
+              env:
+                  USE_SYSTEM_FPM: "true"
+                  CSC_IDENTITY_AUTO_DISCOVERY: "false"
+
+            - name: Build packages (macOS / Windows)
+              if: matrix.platform != 'linux'
               run: task package
               env:
                   USE_SYSTEM_FPM: "true"
-                  SNAPCRAFT_BUILD_ENVIRONMENT: host
                   CSC_IDENTITY_AUTO_DISCOVERY: "false"
 
             - name: Upload build artifacts
@@ -108,14 +112,6 @@ jobs:
                   name: ${{ matrix.runner }}
                   path: make
                   retention-days: 14
-
-            - name: Upload Snapcraft logs on failure
-              if: failure() && matrix.platform == 'linux'
-              uses: actions/upload-artifact@v5
-              with:
-                  name: ${{ matrix.runner }}-snap-log
-                  path: /home/runner/.local/state/snapcraft/log
-                  retention-days: 7
 
     create-release:
         runs-on: ubuntu-latest
@@ -149,7 +145,8 @@ jobs:
                       ### Packages
                       - **macOS**: DMG + ZIP (arm64, x64)
                       - **Windows**: MSI + NSIS installer + ZIP
-                      - **Linux**: DEB, RPM, AppImage, Snap, Pacman, ZIP (amd64 / arm64 per runner)
+                      - **Linux**: DEB, RPM, AppImage, Pacman, ZIP (amd64 / arm64 per runner)
+                      - Snap omitted (Snapcraft 9 / electron-builder incompatibility)
 
                       Unsigned builds for community distribution.
                   draft: ${{ github.event.inputs.publish == 'false' }}
@@ -163,5 +160,4 @@ jobs:
                       make/*.rpm
                       make/*.deb
                       make/*.pacman
-                      make/*.snap
                       make/*.AppImage
