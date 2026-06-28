@@ -115,10 +115,50 @@ task generate
 
 - `.omx/`
 - 本地日志、`*.log`
-- 构建产物（`dist/`、`dist-dev/`、`out/`、`bin/` 等）
+- 构建产物（`dist/`、`dist-dev/`、`out/`、`bin/`、`make/` 等）
 - `node_modules/`
 - 临时文件、`test-results.xml`
 - 私钥、token、本地路径等敏感信息
+
+## I. 发布与打包
+
+### 策略
+
+- **仅手动发布**：普通 commit 推送到 `main` / `zh-cn` **不会**触发构建。
+- 发布由 GitHub Actions workflow **手动触发**（`workflow_dispatch`），在汉化改动积累并验证后再打包。
+- 跨平台产物（macOS / Windows / Linux）依赖 CI 矩阵；本地环境通常无法一次打全平台包。
+
+### 发布流程
+
+1. 确保 `main`（及 `zh-cn`）已包含待发布的汉化 commit，且验证通过（见 **F. 验证要求**）。
+2. 打开 GitHub → **Actions** → **Release zh-CN Build** → **Run workflow**。
+3. 填写参数：
+   - **tag**：版本标签，格式 `v{上游版本}-zh.{序号}`，例如 `v0.14.5-zh.2`（序号在同类版本上递增）。
+   - **publish**：`true` 直接发布；`false` 先创建 **Draft** Release，检查产物后再手动发布。
+4. Workflow 从当前默认分支（`main`）检出代码，在 4 个 runner 上并行构建并上传至 GitHub Releases。
+5. 用户在 [Releases](https://github.com/Bianshumeng/waveterm-zh/releases) 页面下载对应平台安装包。
+
+Workflow 文件：`.github/workflows/release-zh.yml`。
+
+### 产物格式
+
+与上游 `electron-builder` 配置一致（输出目录 `make/`）：
+
+| 平台 | 格式 |
+|------|------|
+| macOS | DMG、ZIP（arm64、x64） |
+| Windows | MSI、NSIS 安装包、ZIP |
+| Linux | DEB、RPM、AppImage、Snap、Pacman、ZIP（amd64 / arm64 按 runner 区分） |
+
+### 签名与分发说明
+
+- 构建为**未签名**版本（`CSC_IDENTITY_AUTO_DISCOVERY=false`），无需上游代码签名密钥。
+- macOS 首次打开可能需右键「打开」或系统安全设置放行；Windows 可能触发 SmartScreen 提示。
+- 公开发布仓库在标准 GitHub-hosted runner 上运行 Actions **免费**（公开 repo 额度内）。
+
+### 本地构建（可选）
+
+完整打包需 `task`、`go`、`zig` 等工具链，见上游 `BUILD.md`。CI 为推荐的发布路径；本地可仅做 `npm run build:dev` 等开发验证。
 
 ---
 

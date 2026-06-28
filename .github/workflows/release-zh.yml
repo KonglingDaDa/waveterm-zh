@@ -3,15 +3,15 @@
 # Unsigned builds — no upstream code-signing secrets required.
 
 name: Release zh-CN Build
-run-name: Release zh ${{ github.ref_name }}${{ github.event_name == 'workflow_dispatch' && format(' ({0})', github.event.inputs.tag) || '' }}
+run-name: Release zh ${{ github.event.inputs.tag }}
 
 on:
     workflow_dispatch:
         inputs:
             tag:
-                description: "Release tag (e.g. v0.14.5-zh.1)"
+                description: "Release tag (e.g. v0.14.5-zh.2)"
                 required: true
-                default: "v0.14.5-zh.1"
+                default: "v0.14.5-zh.2"
             publish:
                 description: "Publish release (false = draft)"
                 required: false
@@ -20,9 +20,6 @@ on:
                 options:
                     - "true"
                     - "false"
-    push:
-        tags:
-            - "v*-zh*"
 
 env:
     GO_VERSION: "1.25.6"
@@ -128,12 +125,7 @@ jobs:
         steps:
             - name: Resolve release tag
               id: tag
-              run: |
-                  if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-                    echo "value=${{ github.event.inputs.tag }}" >> "$GITHUB_OUTPUT"
-                  else
-                    echo "value=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
-                  fi
+              run: echo "value=${{ github.event.inputs.tag }}" >> "$GITHUB_OUTPUT"
 
             - name: Download all platform artifacts
               uses: actions/download-artifact@v4
@@ -160,7 +152,7 @@ jobs:
                       - **Linux**: DEB, RPM, AppImage, Snap, Pacman, ZIP (amd64 / arm64 per runner)
 
                       Unsigned builds for community distribution.
-                  draft: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.publish == 'false' }}
+                  draft: ${{ github.event.inputs.publish == 'false' }}
                   prerelease: false
                   generate_release_notes: false
                   files: |
