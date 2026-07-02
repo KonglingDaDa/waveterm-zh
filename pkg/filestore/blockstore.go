@@ -262,7 +262,14 @@ func (s *FileStore) WriteAt(ctx context.Context, zoneId string, name string, off
 }
 
 func (s *FileStore) AppendData(ctx context.Context, zoneId string, name string, data []byte) error {
-	return withLock(s, zoneId, name, func(entry *CacheEntry) error {
+	_, err := s.AppendDataGetOffset(ctx, zoneId, name, data)
+	return err
+}
+
+// returns the logical file offset where the data was written (File.Size before the append)
+func (s *FileStore) AppendDataGetOffset(ctx context.Context, zoneId string, name string, data []byte) (int64, error) {
+	var offset int64
+	err := withLock(s, zoneId, name, func(entry *CacheEntry) error {
 		err := entry.loadFileIntoCache(ctx)
 		if err != nil {
 			return err
@@ -275,9 +282,11 @@ func (s *FileStore) AppendData(ctx context.Context, zoneId string, name string, 
 				return err
 			}
 		}
+		offset = entry.File.Size
 		entry.writeAt(entry.File.Size, data, false)
 		return nil
 	})
+	return offset, err
 }
 
 func metaIncrement(file *WaveFile, key string, amount int) int {

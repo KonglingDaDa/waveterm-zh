@@ -89,4 +89,6 @@ type WSFileEventData struct {
 	FileName string `json:"filename"`
 	FileOp   string `json:"fileop"`
 	Data64   string `json:"data64"`
+	// for appends, the logical file offset where this data begins (File.Size before the append)
+	Offset int64 `json:"offset"`
 }
