@@ -78,6 +78,9 @@ export class TermWrap {
     tabId: string;
     blockId: string;
     ptyOffset: number;
+    // logical file offset of stream data queued for write; unlike ptyOffset (updated in the
+    // async write callback) this advances synchronously so append dedup sees a current value
+    streamOffset: number;
     dataBytesProcessed: number;
     terminal: Terminal;
     connectElem: HTMLDivElement;
@@ -86,7 +89,7 @@ export class TermWrap {
     serializeAddon: SerializeAddon;
     mainFileSubject: SubjectWithRef<WSFileEventData>;
     loaded: boolean;
-    heldData: Uint8Array[];
+    heldData: { data: Uint8Array; offset?: number }[];
     handleResize_debounced: () => void;
     hasResized: boolean;
     multiInputCallback: (data: string) => void;
@@ -135,6 +138,7 @@ export class TermWrap {
         this.sendDataHandler = waveOptions.sendDataHandler;
         this.nodeModel = waveOptions.nodeModel;
         this.ptyOffset = 0;
+        this.streamOffset = 0;
         this.dataBytesProcessed = 0;
         this.hasResized = false;
         this.lastUpdated = Date.now();
@@ -436,6 +440,16 @@ export class TermWrap {
         try {
             await this.loadInitialTerminalData();
         } finally {
+            // replay stream data that arrived during the initial load (writeStreamData
+            // skips the prefix already covered by the file fetch), then flip loaded so
+            // subsequent appends write directly.  no awaits here: xterm applies writes
+            // in call order, and new subject events cannot interleave synchronous code.
+            this.streamOffset = this.ptyOffset;
+            const held = this.heldData;
+            this.heldData = [];
+            for (const chunk of held) {
+                this.writeStreamData(chunk.data, chunk.offset);
+            }
             this.loaded = true;
         }
         this.runProcessIdleTimeout();
@@ -480,17 +494,43 @@ export class TermWrap {
         if (msg.fileop == "truncate") {
             this.terminal.clear();
             this.heldData = [];
+            this.ptyOffset = 0;
+            this.streamOffset = 0;
         } else if (msg.fileop == "append") {
             const decodedData = base64ToArray(msg.data64);
             if (this.loaded) {
-                this.doTerminalWrite(decodedData, null);
+                this.writeStreamData(decodedData, msg.offset);
             } else {
-                this.heldData.push(decodedData);
+                this.heldData.push({ data: decodedData, offset: msg.offset });
             }
         } else {
             console.log("bad fileop for terminal", msg);
             return;
         }
+    }
+
+    // dedups stream appends against data already applied by the initial file load.
+    // offset is the logical file offset where this chunk begins (from WSFileEventData).
+    writeStreamData(data: Uint8Array, offset?: number) {
+        if (offset == null) {
+            this.streamOffset += data.length;
+            this.doTerminalWrite(data, null);
+            return;
+        }
+        if (offset + data.length <= this.streamOffset) {
+            return;
+        }
+        if (offset > this.streamOffset) {
+            console.warn(
+                `[termwrap] pty stream gap (blockid=${this.blockId}) expected=${this.streamOffset} got=${offset}`
+            );
+            this.streamOffset = offset + data.length;
+            this.doTerminalWrite(data, offset + data.length);
+            return;
+        }
+        const sliced = data.subarray(this.streamOffset - offset);
+        this.streamOffset += sliced.length;
+        this.doTerminalWrite(sliced, null);
     }
 
     doTerminalWrite(data: string | Uint8Array, setPtyOffset?: number): Promise<void> {
@@ -549,6 +589,14 @@ export class TermWrap {
         );
         if (mainFile != null) {
             await this.doTerminalWrite(mainData, null);
+            // anchor to the server-reported size so held-data dedup lines up even if the
+            // circular file trimmed past the cache's ptyoffset and the read came back shifted
+            if (this.ptyOffset != mainFile.size) {
+                console.warn(
+                    `[termwrap] initial load offset mismatch (blockid=${this.blockId}) ptyoffset=${this.ptyOffset} filesize=${mainFile.size}`
+                );
+                this.ptyOffset = mainFile.size;
+            }
         }
     }
 
