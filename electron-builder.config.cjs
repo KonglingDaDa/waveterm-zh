@@ -14,7 +14,8 @@ const config = {
     productName: pkg.productName,
     executableName: pkg.productName,
     artifactName: "${productName}-${platform}-${arch}-${version}.${ext}",
-    generateUpdatesFilesForAllChannels: true,
+    // waveterm-zh: do not publish to upstream dl.waveterm.dev (would replace this build with official English).
+    generateUpdatesFilesForAllChannels: false,
     npmRebuild: false,
     nodeGypRebuild: false,
     electronCompile: false,
@@ -117,10 +118,7 @@ const config = {
         // this should remove /usr/lib/.build-id/ links which can conflict with other electron apps like slack
         fpm: ["--rpm-rpmbuild-define", "_build_id_links none"],
     },
-    publish: {
-        provider: "generic",
-        url: "https://dl.waveterm.dev/releases-w2",
-    },
+
     afterPack: (context) => {
         // This is a workaround to restore file permissions to the wavesrv binaries on macOS after packaging the universal binary.
         if (context.electronPlatformName === "darwin" && context.arch === Arch.universal) {

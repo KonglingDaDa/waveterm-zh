@@ -5,7 +5,7 @@ import { enUS } from "./en-US";
 import type { I18nCatalog, I18nParams, Locale, LocaleOption } from "./types";
 import { zhCN } from "./zh-CN";
 
-const DefaultLocale: Locale = "en-US";
+const DefaultLocale: Locale = "zh-CN";
 
 const localeCatalogs: Record<Locale, I18nCatalog> = {
     "en-US": enUS,

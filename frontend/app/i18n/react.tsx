@@ -6,7 +6,7 @@ import { useAtomValue } from "jotai";
 import { createContext, useCallback, useContext, useMemo, type ReactNode } from "react";
 import { t, type I18nParams, type Locale } from "./index";
 
-const LocaleContext = createContext<Locale>("en-US");
+const LocaleContext = createContext<Locale>("zh-CN");
 
 export function LocaleProvider({ children }: { children: ReactNode }) {
     const locale = useAtomValue(atoms.localeAtom);
