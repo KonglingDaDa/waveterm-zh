@@ -3,7 +3,7 @@
 
 import { resolveLocale, t, type I18nParams, type Locale } from "./index";
 
-let cachedMainLocale: Locale = "en-US";
+let cachedMainLocale: Locale = "zh-CN";
 
 export function getLocaleFromFullConfig(fullConfig?: FullConfigType | null): Locale {
     return resolveLocale(fullConfig?.settings?.["app:locale"]);

@@ -34,6 +34,9 @@ describe("i18n", () => {
 
     it("falls back to the original key when a translation is missing", () => {
         expect(t("Untranslated UI String", undefined, "zh-CN")).toBe("Untranslated UI String");
+        // zh-CN is the default locale, so missing-key tracking applies to other locales only.
+        expect(getMissingTranslationKeys()).toEqual([]);
+        expect(t("Untranslated UI String", undefined, "en-US")).toBe("Untranslated UI String");
         expect(getMissingTranslationKeys()).toContain("Untranslated UI String");
     });
 
@@ -43,11 +46,11 @@ describe("i18n", () => {
     });
 
     it("resolves supported locales", () => {
-        expect(resolveLocale(null)).toBe("en-US");
+        expect(resolveLocale(null)).toBe("zh-CN");
         expect(resolveLocale("en")).toBe("en-US");
         expect(resolveLocale("zh-CN")).toBe("zh-CN");
         expect(resolveLocale("zh_Hans_CN")).toBe("zh-CN");
-        expect(resolveLocale("fr-FR")).toBe("en-US");
+        expect(resolveLocale("fr-FR")).toBe("zh-CN");
         expect(normalizeLocale("en")).toBe("en-US");
         expect(normalizeLocale("zh_Hans_CN")).toBe("zh-CN");
         expect(normalizeLocale("ja-JP")).toBe(null);

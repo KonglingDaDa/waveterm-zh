@@ -317,13 +317,14 @@ describe("locale slice", () => {
         );
     });
 
-    it("main-safe locale helpers fall back to en-US without config", () => {
-        setMainProcessLocale("en-US");
-        expect(getLocaleFromFullConfig(null)).toBe("en-US");
-        expect(getLocaleFromFullConfig(undefined)).toBe("en-US");
-        expect(getLocaleFromFullConfig({ settings: {} } as FullConfigType)).toBe("en-US");
+    it("main-safe locale helpers fall back to zh-CN without config", () => {
+        setMainProcessLocale("zh-CN");
+        expect(getLocaleFromFullConfig(null)).toBe("zh-CN");
+        expect(getLocaleFromFullConfig(undefined)).toBe("zh-CN");
+        expect(getLocaleFromFullConfig({ settings: {} } as FullConfigType)).toBe("zh-CN");
         expect(getLocaleFromFullConfig({ settings: { "app:locale": "zh-CN" } } as FullConfigType)).toBe("zh-CN");
-        expect(getMainProcessLocale()).toBe("en-US");
+        expect(getLocaleFromFullConfig({ settings: { "app:locale": "en-US" } } as FullConfigType)).toBe("en-US");
+        expect(getMainProcessLocale()).toBe("zh-CN");
     });
 
     it("onboarding button keys resolve in zh-CN", () => {

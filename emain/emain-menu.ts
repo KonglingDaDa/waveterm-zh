@@ -7,6 +7,8 @@ import type { Locale } from "@/app/i18n/types";
 import { waveEventSubscribeSingle } from "@/app/store/wps";
 import { RpcApi } from "@/app/store/wshclientapi";
 import * as electron from "electron";
+
+const ZhForkReleasesUrl = "https://github.com/KonglingDaDa/waveterm-zh/releases";
 import { fireAndForget } from "../frontend/util/util";
 import { focusedBuilderWindow, getBuilderWindowById } from "./emain-builder";
 import { openBuilderWindow } from "./emain-ipc";
@@ -23,7 +25,7 @@ import {
     WaveBrowserWindow,
 } from "./emain-window";
 import { ElectronWshClient } from "./emain-wsh";
-import { updater } from "./updater";
+
 
 type AppMenuCallbacks = {
     createNewWaveWindow: () => Promise<void>;
@@ -198,7 +200,7 @@ function makeAppMenuItems(locale: Locale, webContents: electron.WebContents): El
         {
             label: menuLabel("Check for Updates", locale),
             click: () => {
-                fireAndForget(() => updater?.checkForUpdates(true));
+                fireAndForget(() => electron.shell.openExternal(ZhForkReleasesUrl));
             },
         },
         { type: "separator" },
