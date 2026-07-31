@@ -1,7 +1,6 @@
-# Build and publish waveterm-zh release packages to GitHub Releases.
-# Mirrors upstream artifact formats (DMG/ZIP, MSI/NSIS/ZIP, DEB/RPM/AppImage/Pacman/ZIP).
-# Linux Snap is omitted in CI: Snapcraft 9 renamed `snap` → `pack`, incompatible with electron-builder.
-# Unsigned builds — no upstream code-signing secrets required.
+# Build and publish one waveterm-zh installer per desktop platform.
+# macOS: universal DMG; Windows: x64 NSIS; Linux: x64 AppImage.
+# Unsigned builds - no upstream code-signing secrets required.
 
 name: Release zh-CN Build
 run-name: Release zh ${{ github.event.inputs.tag }}
@@ -10,9 +9,9 @@ on:
     workflow_dispatch:
         inputs:
             tag:
-                description: "Release tag (e.g. v0.14.5-zh.2)"
+                description: "Release tag (e.g. v0.14.5-zh.5)"
                 required: true
-                default: "v0.14.5-zh.2"
+                default: "v0.14.5-zh.5"
             publish:
                 description: "Publish release (false = draft)"
                 required: false
@@ -36,12 +35,16 @@ jobs:
                 include:
                     - platform: darwin
                       runner: macos-latest
+                      artifact-name: macos-universal-dmg
+                      artifact-path: make/*.dmg
                     - platform: linux
                       runner: ubuntu-latest
-                    - platform: linux
-                      runner: ubuntu-24.04-arm
+                      artifact-name: linux-x64-appimage
+                      artifact-path: make/*.AppImage
                     - platform: windows
                       runner: windows-latest
+                      artifact-name: windows-x64-nsis
+                      artifact-path: make/*.exe
         runs-on: ${{ matrix.runner }}
         steps:
             - uses: actions/checkout@v6
@@ -50,19 +53,11 @@ jobs:
               if: matrix.platform == 'linux'
               run: |
                   sudo apt-get update
-                  sudo apt-get install --no-install-recommends -y libarchive-tools libopenjp2-tools rpm squashfs-tools zip
+                  sudo apt-get install --no-install-recommends -y libarchive-tools libopenjp2-tools squashfs-tools
 
             - name: Install Zig (Linux and Windows)
               if: matrix.platform != 'darwin'
               uses: mlugg/setup-zig@v2
-
-            - name: Install FPM (not Windows)
-              if: matrix.platform != 'windows'
-              run: sudo gem install fpm
-
-            - name: Install FPM (Windows)
-              if: matrix.platform == 'windows'
-              run: gem install fpm
 
             - uses: actions/setup-go@v6
               with:
@@ -92,32 +87,37 @@ jobs:
                   version: 3.x
                   repo-token: ${{ secrets.GITHUB_TOKEN }}
 
-            - name: Build packages (Linux)
+            - name: Build AppImage (Linux x64)
               if: matrix.platform == 'linux'
-              run: task package -- --linux zip deb rpm AppImage pacman
+              run: task package -- --linux AppImage --x64
               env:
-                  USE_SYSTEM_FPM: "true"
                   CSC_IDENTITY_AUTO_DISCOVERY: "false"
 
-            - name: Build packages (macOS / Windows)
-              if: matrix.platform != 'linux'
-              run: task package
+            - name: Build DMG (macOS universal)
+              if: matrix.platform == 'darwin'
+              run: task package -- --mac dmg --universal
               env:
-                  USE_SYSTEM_FPM: "true"
+                  CSC_IDENTITY_AUTO_DISCOVERY: "false"
+
+            - name: Build NSIS installer (Windows x64)
+              if: matrix.platform == 'windows'
+              run: task package -- --win nsis --x64
+              env:
                   CSC_IDENTITY_AUTO_DISCOVERY: "false"
 
             - name: Upload build artifacts
               uses: actions/upload-artifact@v5
               with:
-                  name: ${{ matrix.runner }}
-                  path: make
+                  name: ${{ matrix.artifact-name }}
+                  path: ${{ matrix.artifact-path }}
+                  if-no-files-found: error
                   retention-days: 14
 
     create-release:
         runs-on: ubuntu-latest
         needs: build-app
-        # Run when at least one matrix leg succeeded; upload whatever built (ARM may fail independently).
-        if: ${{ !cancelled() && needs.build-app.result != 'skipped' }}
+        # A release must contain one installer for every supported desktop platform.
+        if: ${{ !cancelled() && needs.build-app.result == 'success' }}
         permissions:
             contents: write
         steps:
@@ -134,19 +134,29 @@ jobs:
             - name: Prepare release files
               run: |
                   mkdir -p release-files
-                  # Each matrix runner uploads as a separate artifact (macos-latest, etc.).
-                  # Copy only top-level installers from each runner — skip unpacked/ subtrees.
-                  for runner_dir in artifacts/*/; do
-                    find "$runner_dir" -maxdepth 1 -type f \( \
-                        -name '*.zip' -o -name '*.dmg' -o -name '*.exe' -o -name '*.msi' \
-                        -o -name '*.rpm' -o -name '*.deb' -o -name '*.pacman' -o -name '*.AppImage' \
-                    \) -exec cp -f -t release-files {} +
-                  done
+                  find artifacts -type f \( -name '*.dmg' -o -name '*.exe' -o -name '*.AppImage' \) \
+                    -exec cp -f -t release-files {} +
+
                   echo "Release files:"
-                  find release-files -type f | sort
-                  count=$(find release-files -type f | wc -l)
-                  if [ "$count" -eq 0 ]; then
-                    echo "No release files found in downloaded artifacts"
+                  find release-files -maxdepth 1 -type f | sort
+
+                  assert_one() {
+                    pattern="$1"
+                    label="$2"
+                    count=$(find release-files -maxdepth 1 -type f -name "$pattern" | wc -l)
+                    if [ "$count" -ne 1 ]; then
+                      echo "Expected exactly one $label ($pattern), found $count"
+                      exit 1
+                    fi
+                  }
+
+                  assert_one '*.dmg' 'macOS DMG'
+                  assert_one '*.exe' 'Windows NSIS installer'
+                  assert_one '*.AppImage' 'Linux AppImage'
+
+                  total=$(find release-files -maxdepth 1 -type f | wc -l)
+                  if [ "$total" -ne 3 ]; then
+                    echo "Expected exactly three release files, found $total"
                     exit 1
                   fi
 
@@ -161,14 +171,14 @@ jobs:
                       **Unofficial fork** — not affiliated with [waveterm.dev](https://www.waveterm.dev).
 
                       ### Packages
-                      - **macOS**: DMG + ZIP (arm64, x64)
-                      - **Windows**: MSI + NSIS installer + ZIP
-                      - **Linux**: DEB, RPM, AppImage, Pacman, ZIP (amd64 / arm64 per runner)
-                      - Snap omitted (Snapcraft 9 / electron-builder incompatibility)
+                      - **macOS**: universal DMG (Apple Silicon + Intel)
+                      - **Windows**: x64 NSIS installer (`.exe`)
+                      - **Linux**: x64 AppImage
 
                       Unsigned builds for community distribution.
                   draft: ${{ github.event.inputs.publish == 'false' }}
                   prerelease: false
                   generate_release_notes: false
+                  target_commitish: ${{ github.sha }}
                   fail_on_unmatched_files: true
                   files: release-files/*
