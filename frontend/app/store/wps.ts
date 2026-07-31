@@ -1,9 +1,9 @@
 // Copyright 2026, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+import { isPreviewWindow } from "@/app/store/windowtype";
 import type { WshClient } from "@/app/store/wshclient";
 import { RpcApi } from "@/app/store/wshclientapi";
-import { isPreviewWindow } from "@/app/store/windowtype";
 import { isBlank } from "@/util/util";
 import { Subject } from "rxjs";
 
@@ -36,11 +36,24 @@ type WaveEventUnsubscribe = {
 // key is "eventType" or "eventType|oref"
 const fileSubjects = new Map<string, SubjectWithRef<WSFileEventData>>();
 const waveEventSubjects = new Map<string, WaveEventSubjectContainer[]>();
+const reconnectListeners = new Set<() => void>();
 
 function wpsReconnectHandler() {
     for (const eventType of waveEventSubjects.keys()) {
         updateWaveEventSub(eventType);
     }
+    for (const listener of Array.from(reconnectListeners)) {
+        try {
+            listener();
+        } catch (error) {
+            console.error("WPS reconnect listener failed", error);
+        }
+    }
+}
+
+function subscribeToWpsReconnect(listener: () => void): () => void {
+    reconnectListeners.add(listener);
+    return () => reconnectListeners.delete(listener);
 }
 
 function updateWaveEventSub(eventType: string) {
@@ -127,6 +140,11 @@ function getFileSubject(zoneId: string, fileName: string): SubjectWithRef<WSFile
     return subject;
 }
 
+function publishFileSubject(event: WSFileEventData): void {
+    const subject = fileSubjects.get(event.zoneid + "|" + event.filename);
+    subject?.next(event);
+}
+
 function handleWaveEvent(event: WaveEvent) {
     // console.log("handleWaveEvent", event);
     const subjects = waveEventSubjects.get(event.event);
@@ -150,7 +168,9 @@ function handleWaveEvent(event: WaveEvent) {
 export {
     getFileSubject,
     handleWaveEvent,
+    publishFileSubject,
     setWpsRpcClient,
+    subscribeToWpsReconnect,
     waveEventSubscribeSingle,
     waveEventUnsubscribe,
     wpsReconnectHandler,
