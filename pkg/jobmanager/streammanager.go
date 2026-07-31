@@ -20,8 +20,8 @@ const (
 	DisconnReadSz = 4 * 1024        // 4 KB read chunks when disconnected
 	MaxPacketSize = 4 * 1024        // 4 KB max data per packet
 
-	// StreamAckStallTimeout is how long outstanding data/terminal events may wait
-	// for ACK progress before the transport is aborted and the substream rebuilt.
+	// StreamAckStallTimeout is how long unacked packets or zero-window-blocked
+	// output may wait for ACK/window progress before the transport is rebuilt.
 	// Chosen as 3x the default WSH RPC enqueue timeout (5s); full recovery SLA is 30s.
 	StreamAckStallTimeout = 15 * time.Second
 	// StreamAckCheckInterval is how often the watchdog evaluates ACK progress.
@@ -55,7 +55,8 @@ type StreamManager struct {
 	terminalEvent *streamTerminalEvent
 	eofPos        int64 // fixed position when EOF/error occurs (-1 if not yet)
 
-	reader io.Reader
+	reader             io.Reader
+	readerPendingBytes int64 // bytes read from reader but not yet written to buf
 
 	cwndSize int
 	rwndSize int
@@ -78,8 +79,8 @@ type StreamManager struct {
 	// connectionEpoch increments on each ClientConnected so late failures from
 	// a previous transport cannot abort a freshly established connection.
 	connectionEpoch int64
-	// lastAckProgressAt is the last time a legitimate ACK advanced seq or Fin.
-	// Zero means no outstanding data/terminal is currently waiting for ACK.
+	// lastAckProgressAt is when ACK-tracked work last made progress or a
+	// zero-window wait began. Zero means there is no work the watchdog tracks.
 	lastAckProgressAt time.Time
 	// transportFailurePending ensures one Abort per failed epoch.
 	transportFailurePending bool
@@ -387,16 +388,6 @@ func (sm *StreamManager) RecvAck(ackPk wshrpc.CommandStreamAckData) {
 			sm.sentNotAcked -= ackedBytes
 		}
 
-		// Only seq advance (or Fin above) counts as ACK progress for the watchdog.
-		// Pure RWnd updates must not mask a missing data ACK.
-		if seq > prevMaxSeq {
-			if sm.hasOutstandingLocked() {
-				sm.lastAckProgressAt = sm.now()
-			} else {
-				sm.lastAckProgressAt = time.Time{}
-			}
-		}
-
 		prevRwnd := sm.rwndSize
 		sm.rwndSize = int(ackPk.RWnd)
 		effectiveWindow := sm.cwndSize
@@ -404,6 +395,24 @@ func (sm *StreamManager) RecvAck(ackPk wshrpc.CommandStreamAckData) {
 			effectiveWindow = sm.rwndSize
 		}
 		sm.buf.SetEffectiveWindow(true, effectiveWindow)
+
+		// Only seq advance (or Fin above) counts as ACK progress for data
+		// already in flight. A pure RWnd update must not mask a missing data
+		// ACK. When no data is outstanding, however, opening a zero window
+		// ends that wait so the next packet receives a fresh stall budget.
+		if seq > prevMaxSeq {
+			if sm.hasStallTrackedWorkLocked() {
+				sm.lastAckProgressAt = sm.now()
+			} else {
+				sm.lastAckProgressAt = time.Time{}
+			}
+		} else if !sm.hasOutstandingLocked() {
+			if sm.hasZeroWindowPendingLocked() {
+				sm.markOutstandingLocked()
+			} else {
+				sm.lastAckProgressAt = time.Time{}
+			}
+		}
 
 		if sm.rwndSize > prevRwnd || ackedBytes > 0 {
 			sm.drainCond.Signal()
@@ -423,15 +432,24 @@ func (sm *StreamManager) hasOutstandingLocked() bool {
 	return sm.terminalEventSent && !sm.terminalEventAcked
 }
 
-// markOutstandingLocked starts the ACK stall timer when the first unacked
-// data or terminal packet is scheduled.
+func (sm *StreamManager) hasZeroWindowPendingLocked() bool {
+	bufferedUnsent := int64(sm.buf.Size()) - sm.sentNotAcked
+	return sm.connected && sm.rwndSize == 0 && (bufferedUnsent > 0 || sm.readerPendingBytes > 0)
+}
+
+func (sm *StreamManager) hasStallTrackedWorkLocked() bool {
+	return sm.hasOutstandingLocked() || sm.hasZeroWindowPendingLocked()
+}
+
+// markOutstandingLocked starts the stall timer when the first unacked packet
+// is scheduled or buffered data becomes blocked behind a zero receive window.
 func (sm *StreamManager) markOutstandingLocked() {
 	if sm.lastAckProgressAt.IsZero() {
 		sm.lastAckProgressAt = sm.now()
 	}
 }
 
-// CheckAckStall evaluates whether outstanding ACKs have stalled.
+// CheckAckStall evaluates whether ACK or receive-window progress has stalled.
 // Returns the sender to Abort (if any) and a reason string. Safe for tests.
 // Abort is NOT invoked here; the caller must call Abort outside the StreamManager lock.
 func (sm *StreamManager) CheckAckStall(now time.Time) (sender DataSender, epoch int64, stalled bool, reason string) {
@@ -444,7 +462,7 @@ func (sm *StreamManager) checkAckStallLocked(now time.Time) (sender DataSender, 
 	if sm.closed || !sm.connected || sm.transportFailurePending {
 		return nil, sm.connectionEpoch, false, ""
 	}
-	if !sm.hasOutstandingLocked() {
+	if !sm.hasStallTrackedWorkLocked() {
 		return nil, sm.connectionEpoch, false, ""
 	}
 	if sm.lastAckProgressAt.IsZero() {
@@ -459,10 +477,13 @@ func (sm *StreamManager) checkAckStallLocked(now time.Time) (sender DataSender, 
 	sender = sm.dataSender
 	epoch = sm.connectionEpoch
 	outstanding := sm.sentNotAcked
+	rwnd := sm.rwndSize
+	buffered := sm.buf.Size()
+	readerPending := sm.readerPendingBytes
 	expectedAck := sm.buf.HeadPos() + sm.sentNotAcked
 	duration := now.Sub(sm.lastAckProgressAt)
-	reason = fmt.Sprintf("job/stream id=%s epoch=%d expectedAck=%d outstandingBytes=%d duration=%s",
-		sm.streamId, epoch, expectedAck, outstanding, duration)
+	reason = fmt.Sprintf("job/stream id=%s epoch=%d expectedAck=%d outstandingBytes=%d rwnd=%d bufferedBytes=%d readerPendingBytes=%d duration=%s",
+		sm.streamId, epoch, expectedAck, outstanding, rwnd, buffered, readerPending, duration)
 	// Freeze sending for this epoch immediately.
 	sm.connected = false
 	sm.dataSender = nil
@@ -526,6 +547,15 @@ func (sm *StreamManager) SetRwndSize(rwndSize int) error {
 		effectiveWindow = sm.rwndSize
 	}
 	sm.buf.SetEffectiveWindow(true, effectiveWindow)
+	if !sm.hasOutstandingLocked() {
+		if sm.hasZeroWindowPendingLocked() {
+			sm.markOutstandingLocked()
+		} else {
+			// StartStream opens the deliberately corked PrepareConnect window.
+			// The first packet sent after this gets a fresh ACK-stall budget.
+			sm.lastAckProgressAt = time.Time{}
+		}
+	}
 	sm.drainCond.Signal()
 	return nil
 }
@@ -571,12 +601,23 @@ func (sm *StreamManager) readLoop() {
 
 func (sm *StreamManager) handleReadData(data []byte) {
 	offset := 0
+	sm.lock.Lock()
+	sm.readerPendingBytes += int64(len(data))
+	if sm.hasZeroWindowPendingLocked() {
+		sm.markOutstandingLocked()
+	}
+	sm.lock.Unlock()
+
 	for offset < len(data) {
 		n, waitCh := sm.buf.WriteAvailable(data[offset:])
 		offset += n
 
 		if n > 0 {
 			sm.lock.Lock()
+			sm.readerPendingBytes -= int64(n)
+			if sm.hasZeroWindowPendingLocked() {
+				sm.markOutstandingLocked()
+			}
 			sm.drainCond.Signal()
 			sm.lock.Unlock()
 		}
@@ -683,6 +724,9 @@ func (sm *StreamManager) prepareNextPacket() (done bool, pkt *wshrpc.CommandStre
 	}
 
 	if available == 0 {
+		if sm.hasZeroWindowPendingLocked() {
+			sm.markOutstandingLocked()
+		}
 		if sm.terminalEvent != nil && !sm.terminalEventSent {
 			pkt := sm.prepareTerminalPacket()
 			if pkt != nil {
@@ -701,6 +745,9 @@ func (sm *StreamManager) prepareNextPacket() (done bool, pkt *wshrpc.CommandStre
 	availableToSend := int64(effectiveRwnd) - sm.sentNotAcked
 
 	if availableToSend <= 0 {
+		if sm.hasZeroWindowPendingLocked() {
+			sm.markOutstandingLocked()
+		}
 		sm.drainCond.Wait()
 		return false, nil, nil, sm.connectionEpoch
 	}

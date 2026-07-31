@@ -582,6 +582,270 @@ func TestAckStallTriggersAbort(t *testing.T) {
 	sm.Close()
 }
 
+func TestZeroWindowWithBufferedDataTriggersAbort(t *testing.T) {
+	var fakeNow atomic.Int64
+	base := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	fakeNow.Store(base.UnixNano())
+
+	cs := newControllableSender()
+	sm := MakeStreamManagerWithSizes(4, 64)
+	defer sm.Close()
+	sm.SetClockForTest(func() time.Time {
+		return time.Unix(0, fakeNow.Load())
+	}, 15*time.Second)
+
+	if n, _ := sm.buf.WriteAvailable([]byte("abcdefgh")); n != 8 {
+		t.Fatalf("seed write=%d want 8", n)
+	}
+	if _, _, err := sm.ClientConnected("zero-window", cs, 4, 0); err != nil {
+		t.Fatalf("ClientConnected: %v", err)
+	}
+
+	waitFor(t, 2*time.Second, func() bool {
+		packets := cs.getPackets()
+		return len(packets) == 1 && decodeData(packets[0].Data64) == "abcd"
+	}, "first receive window")
+
+	// The client ACKs the complete first window while advertising RWnd=0.
+	// If its later pure window-reopen ACK is lost, the sender must eventually
+	// abort this transport instead of waiting forever with buffered PTY output.
+	sm.RecvAck(wshrpc.CommandStreamAckData{
+		Id:   "zero-window",
+		Seq:  4,
+		RWnd: 0,
+	})
+	if got := sm.buf.Size(); got != 4 {
+		t.Fatalf("buffered bytes after ACK=%d want 4", got)
+	}
+
+	fakeNow.Store(base.Add(16 * time.Second).UnixNano())
+	sender, epoch, stalled, reason := sm.CheckAckStall(time.Unix(0, fakeNow.Load()))
+	if !stalled {
+		t.Fatalf("expected zero-window stall, reason=%q", reason)
+	}
+	if sender == nil {
+		t.Fatal("expected sender to Abort")
+	}
+	if epoch == 0 {
+		t.Fatal("expected non-zero epoch")
+	}
+	if !strings.Contains(reason, "rwnd=0") {
+		t.Fatalf("stall reason should identify zero window: %q", reason)
+	}
+}
+
+func TestZeroWindowWithoutBufferedDataDoesNotStall(t *testing.T) {
+	var fakeNow atomic.Int64
+	base := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	fakeNow.Store(base.UnixNano())
+
+	cs := newControllableSender()
+	sm := MakeStreamManagerWithSizes(4, 64)
+	defer sm.Close()
+	sm.SetClockForTest(func() time.Time {
+		return time.Unix(0, fakeNow.Load())
+	}, 15*time.Second)
+
+	if n, _ := sm.buf.WriteAvailable([]byte("abcd")); n != 4 {
+		t.Fatalf("seed write=%d want 4", n)
+	}
+	if _, _, err := sm.ClientConnected("empty-zero-window", cs, 4, 0); err != nil {
+		t.Fatalf("ClientConnected: %v", err)
+	}
+	waitFor(t, 2*time.Second, func() bool {
+		return cs.packetCount() == 1
+	}, "only receive window")
+
+	sm.RecvAck(wshrpc.CommandStreamAckData{
+		Id:   "empty-zero-window",
+		Seq:  4,
+		RWnd: 0,
+	})
+	if got := sm.buf.Size(); got != 0 {
+		t.Fatalf("buffered bytes after ACK=%d want 0", got)
+	}
+
+	fakeNow.Store(base.Add(16 * time.Second).UnixNano())
+	if _, _, stalled, reason := sm.CheckAckStall(time.Unix(0, fakeNow.Load())); stalled {
+		t.Fatalf("idle zero window must not stall: %s", reason)
+	}
+	if cs.getAbortCount() != 0 {
+		t.Fatalf("unexpected Abort count %d", cs.getAbortCount())
+	}
+}
+
+func TestZeroWindowWithReaderDataWaitingForBufferTriggersAbort(t *testing.T) {
+	var fakeNow atomic.Int64
+	base := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	fakeNow.Store(base.UnixNano())
+
+	cs := newControllableSender()
+	sm := MakeStreamManagerWithSizes(4, 64)
+	defer sm.Close()
+	sm.SetClockForTest(func() time.Time {
+		return time.Unix(0, fakeNow.Load())
+	}, 15*time.Second)
+
+	if n, _ := sm.buf.WriteAvailable([]byte("abcd")); n != 4 {
+		t.Fatalf("seed write=%d want 4", n)
+	}
+	if _, _, err := sm.ClientConnected("reader-zero-window", cs, 4, 0); err != nil {
+		t.Fatalf("ClientConnected: %v", err)
+	}
+	waitFor(t, 2*time.Second, func() bool {
+		return cs.packetCount() == 1
+	}, "first receive window")
+
+	// Empty the circular buffer and close the receive window. The process then
+	// produces more PTY output, which readLoop has already read but cannot put
+	// into CirBuf until the client advertises a non-zero window.
+	sm.RecvAck(wshrpc.CommandStreamAckData{
+		Id:   "reader-zero-window",
+		Seq:  4,
+		RWnd: 0,
+	})
+	if got := sm.buf.Size(); got != 0 {
+		t.Fatalf("buffered bytes after ACK=%d want 0", got)
+	}
+
+	writeDone := make(chan struct{})
+	go func() {
+		sm.handleReadData([]byte("efgh"))
+		close(writeDone)
+	}()
+	waitFor(t, 2*time.Second, func() bool {
+		return len(sm.buf.waiterChan) == 1
+	}, "PTY data blocked outside circular buffer")
+
+	fakeNow.Store(base.Add(16 * time.Second).UnixNano())
+	sender, _, stalled, reason := sm.CheckAckStall(time.Unix(0, fakeNow.Load()))
+	if !stalled {
+		t.Fatalf("expected blocked-reader zero-window stall, reason=%q", reason)
+	}
+	if sender == nil {
+		t.Fatal("expected sender to Abort")
+	}
+	if !strings.Contains(reason, "readerPendingBytes=4") {
+		t.Fatalf("stall reason should identify pending reader bytes: %q", reason)
+	}
+
+	select {
+	case <-writeDone:
+	case <-time.After(2 * time.Second):
+		t.Fatal("blocked reader data did not drain after transport reset")
+	}
+}
+
+func TestZeroWindowReopenBeforeTimeoutResumesWithoutAbort(t *testing.T) {
+	var fakeNow atomic.Int64
+	base := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	fakeNow.Store(base.UnixNano())
+
+	cs := newControllableSender()
+	sm := MakeStreamManagerWithSizes(4, 64)
+	defer sm.Close()
+	sm.SetClockForTest(func() time.Time {
+		return time.Unix(0, fakeNow.Load())
+	}, 15*time.Second)
+
+	if n, _ := sm.buf.WriteAvailable([]byte("abcdefgh")); n != 8 {
+		t.Fatalf("seed write=%d want 8", n)
+	}
+	if _, _, err := sm.ClientConnected("reopen-window", cs, 4, 0); err != nil {
+		t.Fatalf("ClientConnected: %v", err)
+	}
+	waitFor(t, 2*time.Second, func() bool {
+		return cs.packetCount() == 1
+	}, "first receive window")
+
+	sm.RecvAck(wshrpc.CommandStreamAckData{
+		Id:   "reopen-window",
+		Seq:  4,
+		RWnd: 0,
+	})
+
+	// A pure receive-window update arrives before the zero-window timeout.
+	// The resumed data packet gets its own fresh ACK-stall budget.
+	fakeNow.Store(base.Add(10 * time.Second).UnixNano())
+	sm.RecvAck(wshrpc.CommandStreamAckData{
+		Id:   "reopen-window",
+		Seq:  4,
+		RWnd: 4,
+	})
+	waitFor(t, 2*time.Second, func() bool {
+		packets := cs.getPackets()
+		return len(packets) == 2 && decodeData(packets[1].Data64) == "efgh"
+	}, "data after receive window reopened")
+
+	fakeNow.Store(base.Add(16 * time.Second).UnixNano())
+	if _, _, stalled, reason := sm.CheckAckStall(time.Unix(0, fakeNow.Load())); stalled {
+		t.Fatalf("reopened window should have a fresh stall budget: %s", reason)
+	}
+	if cs.getAbortCount() != 0 {
+		t.Fatalf("unexpected Abort count %d", cs.getAbortCount())
+	}
+}
+
+func TestInitialZeroWindowReopenGetsFreshStallBudget(t *testing.T) {
+	var fakeNow atomic.Int64
+	base := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	fakeNow.Store(base.UnixNano())
+
+	cs := newControllableSender()
+	sm := MakeStreamManagerWithSizes(4, 64)
+	defer sm.Close()
+	sm.SetClockForTest(func() time.Time {
+		return time.Unix(0, fakeNow.Load())
+	}, 15*time.Second)
+
+	// Model reader data arriving just before the corked connection is
+	// published, while CirBuf is still empty.
+	sm.buf.SetEffectiveWindow(true, 0)
+	writeDone := make(chan struct{})
+	go func() {
+		sm.handleReadData([]byte("abcdefgh"))
+		close(writeDone)
+	}()
+	waitFor(t, 2*time.Second, func() bool {
+		return len(sm.buf.waiterChan) == 1
+	}, "reader data waiting before initial connection")
+
+	// PrepareConnect deliberately corks a new stream with RWnd=0. StartStream
+	// later opens it through SetRwndSize.
+	if _, _, err := sm.ClientConnected("initial-zero-window", cs, 0, 0); err != nil {
+		t.Fatalf("ClientConnected: %v", err)
+	}
+	waitFor(t, 2*time.Second, func() bool {
+		sm.lock.Lock()
+		defer sm.lock.Unlock()
+		return !sm.lastAckProgressAt.IsZero()
+	}, "initial zero-window stall tracking")
+
+	fakeNow.Store(base.Add(10 * time.Second).UnixNano())
+	if err := sm.SetRwndSize(4); err != nil {
+		t.Fatalf("SetRwndSize: %v", err)
+	}
+	waitFor(t, 2*time.Second, func() bool {
+		packets := cs.getPackets()
+		return len(packets) == 1 && decodeData(packets[0].Data64) == "abcd"
+	}, "data after initial receive window opened")
+
+	fakeNow.Store(base.Add(16 * time.Second).UnixNano())
+	if _, _, stalled, reason := sm.CheckAckStall(time.Unix(0, fakeNow.Load())); stalled {
+		t.Fatalf("opened initial window should have a fresh stall budget: %s", reason)
+	}
+	if cs.getAbortCount() != 0 {
+		t.Fatalf("unexpected Abort count %d", cs.getAbortCount())
+	}
+
+	sm.ClientDisconnected()
+	select {
+	case <-writeDone:
+	case <-time.After(2 * time.Second):
+		t.Fatal("pending reader data did not drain after disconnect")
+	}
+}
+
 func TestAckProgressPreventsStall(t *testing.T) {
 	var fakeNow atomic.Int64
 	base := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
