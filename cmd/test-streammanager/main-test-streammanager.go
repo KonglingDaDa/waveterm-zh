@@ -164,7 +164,7 @@ func runStreamManagerMode(config TestConfig, writerBroker *streamclient.Broker, 
 	writerBroker.AttachStreamWriter(streamMeta, streamManager)
 
 	dataSender := &BrokerDataSender{broker: writerBroker}
-	startSeq, err := streamManager.ClientConnected(streamMeta.Id, dataSender, config.WindowSize, 0)
+	startSeq, _, err := streamManager.ClientConnected(streamMeta.Id, dataSender, config.WindowSize, 0)
 	if err != nil {
 		fmt.Printf("failed to connect stream manager: %v\n", err)
 		return nil
@@ -206,11 +206,21 @@ func runWriterMode(config TestConfig, writerBroker *streamclient.Broker, streamM
 
 // BrokerDataSender implements DataSender interface
 type BrokerDataSender struct {
-	broker *streamclient.Broker
+	broker    *streamclient.Broker
+	abortFunc func(error)
 }
 
-func (s *BrokerDataSender) SendData(dataPk wshrpc.CommandStreamData) {
+func (s *BrokerDataSender) SendData(dataPk wshrpc.CommandStreamData) error {
 	s.broker.SendData(dataPk)
+	return nil
+}
+
+// Abort records transport failure for the test harness. It must not affect
+// production JobManager/PTY semantics.
+func (s *BrokerDataSender) Abort(err error) {
+	if s.abortFunc != nil {
+		s.abortFunc(err)
+	}
 }
 
 // MetricsWriter wraps an io.Writer and records bytes written to metrics

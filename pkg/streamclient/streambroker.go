@@ -25,6 +25,10 @@ type StreamRpcInterface interface {
 	StreamDataCommand(data wshrpc.CommandStreamData, opts *wshrpc.RpcOpts) error
 }
 
+// Retain graceful-reader tombstones beyond the longest job RPC timeout so late
+// packets cannot be converted into Cancel ACKs against a replacement transport.
+const retiredReaderTTL = time.Minute
+
 type Broker struct {
 	lock                sync.Mutex
 	rpcClient           StreamRpcInterface
@@ -33,6 +37,7 @@ type Broker struct {
 	readerRoutes        map[string]string
 	writerRoutes        map[string]string
 	readerErrorSentTime map[string]time.Time
+	retiredReaders      map[string]time.Time
 	sendQueue           *utilds.WorkQueue[workItem]
 	recvQueue           *utilds.WorkQueue[workItem]
 }
@@ -45,6 +50,7 @@ func NewBroker(rpcClient StreamRpcInterface) *Broker {
 		readerRoutes:        make(map[string]string),
 		writerRoutes:        make(map[string]string),
 		readerErrorSentTime: make(map[string]time.Time),
+		retiredReaders:      make(map[string]time.Time),
 	}
 	b.sendQueue = utilds.NewWorkQueue(b.processSendWork)
 	b.recvQueue = utilds.NewWorkQueue(b.processRecvWork)
@@ -58,6 +64,7 @@ func (b *Broker) CreateStreamReader(readerRoute string, writerRoute string, rwnd
 func (b *Broker) CreateStreamReaderWithSeq(readerRoute string, writerRoute string, rwnd int64, startSeq int64) (*Reader, *wshrpc.StreamMeta) {
 	b.lock.Lock()
 	defer b.lock.Unlock()
+	b.pruneRetiredReadersLocked(time.Now())
 
 	streamId := uuid.New().String()
 
@@ -159,8 +166,10 @@ func (b *Broker) processSendAck(ackPk wshrpc.CommandStreamAckData) {
 	}
 	b.rpcClient.StreamDataAckCommand(ackPk, opts)
 
-	if ackPk.Fin || ackPk.Cancel {
+	if ackPk.Cancel {
 		b.cleanupReader(ackPk.Id)
+	} else if ackPk.Fin {
+		b.retireReader(ackPk.Id)
 	}
 }
 
@@ -178,10 +187,16 @@ func (b *Broker) processSendData(dataPk wshrpc.CommandStreamData) {
 
 func (b *Broker) processRecvData(dataPk wshrpc.CommandStreamData) {
 	b.lock.Lock()
+	now := time.Now()
+	b.pruneRetiredReadersLocked(now)
 	reader, ok := b.readers[dataPk.Id]
+	_, retired := b.retiredReaders[dataPk.Id]
+	if !ok && retired {
+		b.lock.Unlock()
+		return
+	}
 	if !ok {
 		lastSent := b.readerErrorSentTime[dataPk.Id]
-		now := time.Now()
 		if now.Sub(lastSent) < time.Second {
 			b.lock.Unlock()
 			return
@@ -233,7 +248,53 @@ func (b *Broker) cleanupReader(streamId string) {
 
 	delete(b.readers, streamId)
 	delete(b.readerRoutes, streamId)
+	delete(b.writerRoutes, streamId)
 	delete(b.readerErrorSentTime, streamId)
+	delete(b.retiredReaders, streamId)
+}
+
+// retireReader removes the active reader while retaining a short-lived
+// tombstone. Late packets from the old stream are ignored instead of being
+// translated into a Cancel ACK that would abort a newly recovering transport.
+func (b *Broker) retireReader(streamId string) {
+	b.lock.Lock()
+	defer b.lock.Unlock()
+	now := time.Now()
+	b.pruneRetiredReadersLocked(now)
+
+	_, readerExists := b.readers[streamId]
+	_, routeExists := b.writerRoutes[streamId]
+	if !readerExists && !routeExists {
+		return
+	}
+	delete(b.readers, streamId)
+	delete(b.readerRoutes, streamId)
+	delete(b.readerErrorSentTime, streamId)
+	b.retiredReaders[streamId] = now
+	time.AfterFunc(retiredReaderTTL, func() {
+		b.expireRetiredReader(streamId, now)
+	})
+}
+
+func (b *Broker) expireRetiredReader(streamId string, retiredAt time.Time) {
+	b.lock.Lock()
+	defer b.lock.Unlock()
+	current, ok := b.retiredReaders[streamId]
+	if !ok || current != retiredAt {
+		return
+	}
+	delete(b.retiredReaders, streamId)
+	delete(b.writerRoutes, streamId)
+}
+
+func (b *Broker) pruneRetiredReadersLocked(now time.Time) {
+	for streamId, retiredAt := range b.retiredReaders {
+		if now.Sub(retiredAt) < retiredReaderTTL {
+			continue
+		}
+		delete(b.retiredReaders, streamId)
+		delete(b.writerRoutes, streamId)
+	}
 }
 
 func (b *Broker) cleanupWriter(streamId string) {

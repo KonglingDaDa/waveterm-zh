@@ -42,6 +42,20 @@ func (sm *SyncMap[T]) Delete(key string) {
 	delete(sm.m, key)
 }
 
+// DeleteIf deletes key only when pred(current, exists) is true, atomically
+// under the map lock. Use pointer identity in pred for compare-and-delete of
+// generation owners so a stale remover cannot drop a newer replacement.
+func (sm *SyncMap[T]) DeleteIf(key string, pred func(current T, exists bool) bool) bool {
+	sm.lock.Lock()
+	defer sm.lock.Unlock()
+	v, ok := sm.m[key]
+	if !pred(v, ok) {
+		return false
+	}
+	delete(sm.m, key)
+	return true
+}
+
 func (sm *SyncMap[T]) SetUnless(key string, value T) bool {
 	sm.lock.Lock()
 	defer sm.lock.Unlock()

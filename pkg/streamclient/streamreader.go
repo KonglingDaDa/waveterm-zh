@@ -14,6 +14,10 @@ type AckSender interface {
 	SendAck(ackPk wshrpc.CommandStreamAckData)
 }
 
+type readerRetirer interface {
+	retireReader(streamId string)
+}
+
 type Reader struct {
 	lock         sync.Mutex
 	cond         *sync.Cond
@@ -27,6 +31,13 @@ type Reader struct {
 	closed       bool
 	lastRwndSent int64
 	oooPackets   []wshrpc.CommandStreamData // out-of-order packets awaiting delivery
+
+	// ingressStopped: refuse new RecvData (no further ACKs for new bytes).
+	// Existing buffer remains readable so WaveFS can drain ACKed data.
+	ingressStopped bool
+	// draining: after buffer is empty, Read returns io.EOF without Cancel.
+	// Used by graceful quiesce before reconnect snapshot.
+	draining bool
 }
 
 func NewReader(id string, readWindow int64, ackSender AckSender) *Reader {
@@ -49,7 +60,9 @@ func (r *Reader) RecvData(dataPk wshrpc.CommandStreamData) {
 	r.lock.Lock()
 	defer r.lock.Unlock()
 
-	if r.closed || r.eof || r.err != nil {
+	// During graceful quiesce we must not accept or ACK new ingress — those
+	// bytes remain on the remote circular buffer for replay after reconnect.
+	if r.closed || r.ingressStopped || r.eof || r.err != nil {
 		return
 	}
 
@@ -146,50 +159,119 @@ func (r *Reader) sendAckLocked(fin bool, cancel bool, errStr string) {
 	r.lastRwndSent = rwnd
 }
 
+// StopIngress refuses new RecvData (and therefore new ACKs) while leaving the
+// already-ACKed memory buffer available for Read. Does not send Cancel.
+func (r *Reader) StopIngress() {
+	r.lock.Lock()
+	defer r.lock.Unlock()
+	r.ingressStopped = true
+	// Drop undelivered OOO so we do not later deliver un-ACKed packets from a
+	// half-open state; remote will resend after reconnect.
+	r.oooPackets = nil
+	r.cond.Broadcast()
+}
+
+// BeginDrain stops ingress and causes Read to return io.EOF once the buffer is empty.
+// Used by graceful quiesce so the output loop can flush WaveFS before snapshot.
+func (r *Reader) BeginDrain() {
+	r.lock.Lock()
+	defer r.lock.Unlock()
+	r.ingressStopped = true
+	r.draining = true
+	r.oooPackets = nil
+	r.cond.Broadcast()
+}
+
+// IsDraining reports whether graceful drain was requested.
+func (r *Reader) IsDraining() bool {
+	r.lock.Lock()
+	defer r.lock.Unlock()
+	return r.draining
+}
+
+// BufferedLen returns the number of bytes currently held in the memory buffer.
+func (r *Reader) BufferedLen() int {
+	r.lock.Lock()
+	defer r.lock.Unlock()
+	return len(r.buffer)
+}
+
 func (r *Reader) Read(p []byte) (int, error) {
 	r.lock.Lock()
 	defer r.lock.Unlock()
 
-	for len(r.buffer) == 0 && !r.eof && r.err == nil && !r.closed {
+	for len(r.buffer) == 0 && !r.eof && r.err == nil && !r.closed && !r.draining {
 		r.cond.Wait()
 	}
 
+	// Hard Close always wins over drain/buffer. BeginDrain alone may flush
+	// ACKed bytes; once Close is called, subsequent Read returns ErrClosedPipe
+	// immediately (file-copy / WshFS cancel contract).
 	if r.closed {
 		return 0, io.ErrClosedPipe
+	}
+
+	// Graceful drain or normal: deliver remaining buffered bytes.
+	if len(r.buffer) > 0 {
+		n := copy(p, r.buffer)
+		r.buffer = r.buffer[n:]
+
+		// During drain/ingress-stop, do not send further window ACKs — reconnect
+		// will reset flow control. Active mode still updates RWnd as before.
+		if !r.draining && !r.ingressStopped {
+			currentRwnd := r.readWindow - int64(len(r.buffer))
+			if currentRwnd < 0 {
+				currentRwnd = 0
+			}
+			threshold := r.readWindow / 5
+			rwndDiff := currentRwnd - r.lastRwndSent
+			if len(r.buffer) == 0 || rwndDiff >= threshold {
+				r.sendAckLocked(false, false, "")
+			}
+		}
+		return n, nil
 	}
 
 	if r.err != nil {
 		return 0, r.err
 	}
 
-	if len(r.buffer) == 0 && r.eof {
+	if r.draining {
+		// Graceful drain complete: buffer empty, no more ingress.
 		return 0, io.EOF
 	}
 
-	n := copy(p, r.buffer)
-	r.buffer = r.buffer[n:]
-
-	if n > 0 {
-		currentRwnd := r.readWindow - int64(len(r.buffer))
-		if currentRwnd < 0 {
-			currentRwnd = 0
-		}
-
-		threshold := r.readWindow / 5
-		rwndDiff := currentRwnd - r.lastRwndSent
-
-		if len(r.buffer) == 0 || rwndDiff >= threshold {
-			r.sendAckLocked(false, false, "")
-		}
+	if r.eof {
+		return 0, io.EOF
 	}
 
-	return n, nil
+	return 0, nil
 }
 
 func (r *Reader) UpdateNextSeq(newSeq int64) {
 	r.lock.Lock()
 	defer r.lock.Unlock()
 	r.nextSeq = newSeq
+}
+
+// ReleaseWithoutCancel unregisters a reader locally after graceful drain or a
+// protocol terminal event. It must not be used to interrupt an active stream;
+// Close is the hard-cancel operation and sends a Cancel ACK.
+func (r *Reader) ReleaseWithoutCancel() error {
+	r.lock.Lock()
+	if !r.draining && !r.eof && r.err == nil && !r.closed {
+		streamId := r.id
+		r.lock.Unlock()
+		return fmt.Errorf("cannot release active stream reader %s without cancel", streamId)
+	}
+	streamId := r.id
+	retirer, canRetire := r.ackSender.(readerRetirer)
+	r.lock.Unlock()
+
+	if canRetire {
+		retirer.retireReader(streamId)
+	}
+	return nil
 }
 
 func (r *Reader) Close() error {
