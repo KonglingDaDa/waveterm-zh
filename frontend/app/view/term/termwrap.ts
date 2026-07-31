@@ -3,12 +3,13 @@
 
 import type { BlockNodeModel } from "@/app/block/blocktypes";
 import { setBadge } from "@/app/store/badge";
-import { getFileSubject } from "@/app/store/wps";
+import { getFileSubject, subscribeToWpsReconnect } from "@/app/store/wps";
 import { RpcApi } from "@/app/store/wshclientapi";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import {
     fetchWaveFile,
     getApi,
+    getBlockTermDurableAtom,
     getOverrideConfigAtom,
     getSettingsKeyAtom,
     globalStore,
@@ -36,6 +37,7 @@ import {
     isClaudeCodeCommand,
     type ShellIntegrationStatus,
 } from "./osc-handlers";
+import { MaxTerminalWriteBytes, TerminalFileSync } from "./terminal-file-sync";
 import {
     bufferLinesToText,
     createTempFileFromBlob,
@@ -52,6 +54,9 @@ const TermCacheFileName = "cache:term:full";
 const MinDataProcessedForCache = 100 * 1024;
 export const SupportsImageInput = true;
 const MaxRepaintTransactionMs = 2000;
+const DurableCatchUpInputStaleMs = 2000;
+const DurableCatchUpPollMs = 15000;
+const DurableCatchUpIdleTimeoutMs = 1000;
 
 // detect webgl support
 function detectWebGLSupport(): boolean {
@@ -78,9 +83,7 @@ export class TermWrap {
     tabId: string;
     blockId: string;
     ptyOffset: number;
-    // logical file offset of stream data queued for write; unlike ptyOffset (updated in the
-    // async write callback) this advances synchronously so append dedup sees a current value
-    streamOffset: number;
+    terminalFileSync: TerminalFileSync;
     dataBytesProcessed: number;
     terminal: Terminal;
     connectElem: HTMLDivElement;
@@ -124,6 +127,11 @@ export class TermWrap {
     lastMode2026ResetTs: number = 0;
     inSyncTransaction: boolean = false;
     inRepaintTransaction: boolean = false;
+    resyncAfterLoad: boolean = false;
+    sourceReplacedAfterLoad: boolean = false;
+    disposed: boolean = false;
+    lastCatchUpRequest: number = 0;
+    idleTimeoutId: ReturnType<typeof setTimeout> = null;
 
     constructor(
         tabId: string,
@@ -138,7 +146,6 @@ export class TermWrap {
         this.sendDataHandler = waveOptions.sendDataHandler;
         this.nodeModel = waveOptions.nodeModel;
         this.ptyOffset = 0;
-        this.streamOffset = 0;
         this.dataBytesProcessed = 0;
         this.hasResized = false;
         this.lastUpdated = Date.now();
@@ -148,6 +155,14 @@ export class TermWrap {
         this.claudeCodeActiveAtom = jotai.atom(false);
         this.webglEnabledAtom = jotai.atom(false) as jotai.PrimitiveAtom<boolean>;
         this.terminal = new Terminal(options);
+        this.terminalFileSync = new TerminalFileSync({
+            fetchDelta: (offset) => fetchWaveFile(this.getZoneId(), TermFileName, offset),
+            write: (data, endOffset, contiguous) => this.doTerminalWrite(data, contiguous ? null : endOffset),
+            onError: (message, error) => {
+                console.warn(`[termwrap] ${message} (blockid=${this.blockId})`, error ?? "");
+            },
+            onSourceReset: this.handleTerminalSourceReset.bind(this),
+        });
         this.fitAddon = new FitAddon();
         this.serializeAddon = new SerializeAddon();
         this.searchAddon = new SearchAddon();
@@ -414,7 +429,10 @@ export class TermWrap {
         }
 
         this.mainFileSubject = getFileSubject(this.getZoneId(), TermFileName);
-        this.mainFileSubject.subscribe(this.handleNewFileSubjectData.bind(this));
+        const mainFileSubscription = this.mainFileSubject.subscribe(this.handleNewFileSubjectData.bind(this));
+        this.toDispose.push({ dispose: () => mainFileSubscription.unsubscribe() });
+        const unsubscribeReconnect = subscribeToWpsReconnect(this.handleWpsReconnect.bind(this));
+        this.toDispose.push({ dispose: unsubscribeReconnect });
 
         try {
             const rtInfo = await RpcApi.GetRTInfoCommand(TabRpcClient, {
@@ -440,22 +458,42 @@ export class TermWrap {
         try {
             await this.loadInitialTerminalData();
         } finally {
-            // replay stream data that arrived during the initial load (writeStreamData
-            // skips the prefix already covered by the file fetch), then flip loaded so
-            // subsequent appends write directly.  no awaits here: xterm applies writes
-            // in call order, and new subject events cannot interleave synchronous code.
-            this.streamOffset = this.ptyOffset;
-            const held = this.heldData;
-            this.heldData = [];
-            for (const chunk of held) {
-                this.writeStreamData(chunk.data, chunk.offset);
-            }
-            this.loaded = true;
+            this.finishInitialTerminalLoad();
         }
         this.runProcessIdleTimeout();
     }
 
+    finishInitialTerminalLoad() {
+        this.terminalFileSync.reset(this.ptyOffset);
+        if (this.sourceReplacedAfterLoad) {
+            this.sourceReplacedAfterLoad = false;
+            this.resyncAfterLoad = false;
+            this.heldData = [];
+            this.loaded = true;
+            this.terminalFileSync.replace(0);
+            this.terminalFileSync.requestCatchUp("file-replaced-after-load");
+            return;
+        }
+
+        const held = this.heldData;
+        this.heldData = [];
+        for (const chunk of held) {
+            this.writeStreamData(chunk.data, chunk.offset);
+        }
+        this.loaded = true;
+        if (this.resyncAfterLoad) {
+            this.resyncAfterLoad = false;
+            this.terminalFileSync.requestCatchUp("wps-reconnect-after-load");
+        }
+    }
+
     dispose() {
+        this.disposed = true;
+        this.terminalFileSync.dispose();
+        if (this.idleTimeoutId != null) {
+            clearTimeout(this.idleTimeoutId);
+            this.idleTimeoutId = null;
+        }
         this.promptMarkers.forEach((marker) => {
             try {
                 marker.dispose();
@@ -466,7 +504,6 @@ export class TermWrap {
         this.promptMarkers = [];
         this.webglContextLossDisposable?.dispose();
         this.webglContextLossDisposable = null;
-        this.terminal.dispose();
         this.toDispose.forEach((d) => {
             try {
                 d.dispose();
@@ -474,12 +511,18 @@ export class TermWrap {
                 /* nothing */
             }
         });
-        this.mainFileSubject.release();
+        this.toDispose = [];
+        this.mainFileSubject?.release();
+        this.terminal.dispose();
     }
 
     handleTermData(data: string) {
         if (!this.loaded) {
             return;
+        }
+
+        if (Date.now() - this.lastUpdated >= DurableCatchUpInputStaleMs) {
+            this.requestDurableCatchUp("terminal-input");
         }
 
         this.sendDataHandler?.(data);
@@ -492,10 +535,12 @@ export class TermWrap {
 
     handleNewFileSubjectData(msg: WSFileEventData) {
         if (msg.fileop == "truncate") {
-            this.terminal.clear();
             this.heldData = [];
-            this.ptyOffset = 0;
-            this.streamOffset = 0;
+            if (!this.loaded) {
+                this.sourceReplacedAfterLoad = true;
+                return;
+            }
+            this.terminalFileSync.replace(0);
         } else if (msg.fileop == "append") {
             const decodedData = base64ToArray(msg.data64);
             if (this.loaded) {
@@ -509,28 +554,33 @@ export class TermWrap {
         }
     }
 
-    // dedups stream appends against data already applied by the initial file load.
-    // offset is the logical file offset where this chunk begins (from WSFileEventData).
+    handleTerminalSourceReset() {
+        this.terminal.clear();
+        this.ptyOffset = 0;
+    }
+
     writeStreamData(data: Uint8Array, offset?: number) {
-        if (offset == null) {
-            this.streamOffset += data.length;
-            this.doTerminalWrite(data, null);
+        this.terminalFileSync.append(data, offset);
+    }
+
+    handleWpsReconnect() {
+        if (!this.loaded) {
+            this.resyncAfterLoad = true;
             return;
         }
-        if (offset + data.length <= this.streamOffset) {
+        this.terminalFileSync.requestCatchUp("wps-reconnect");
+    }
+
+    requestDurableCatchUp(reason: string, minIntervalMs: number = 1000) {
+        if (!this.loaded || globalStore.get(getBlockTermDurableAtom(this.blockId)) !== true) {
             return;
         }
-        if (offset > this.streamOffset) {
-            console.warn(
-                `[termwrap] pty stream gap (blockid=${this.blockId}) expected=${this.streamOffset} got=${offset}`
-            );
-            this.streamOffset = offset + data.length;
-            this.doTerminalWrite(data, offset + data.length);
+        const now = Date.now();
+        if (now - this.lastCatchUpRequest < minIntervalMs) {
             return;
         }
-        const sliced = data.subarray(this.streamOffset - offset);
-        this.streamOffset += sliced.length;
-        this.doTerminalWrite(sliced, null);
+        this.lastCatchUpRequest = now;
+        this.terminalFileSync.requestCatchUp(reason);
     }
 
     doTerminalWrite(data: string | Uint8Array, setPtyOffset?: number): Promise<void> {
@@ -558,6 +608,12 @@ export class TermWrap {
         return prtn;
     }
 
+    async writeInitialTerminalData(data: Uint8Array, setPtyOffset?: number): Promise<void> {
+        for (let offset = 0; offset < data.length; offset += MaxTerminalWriteBytes) {
+            await this.doTerminalWrite(data.subarray(offset, offset + MaxTerminalWriteBytes), setPtyOffset);
+        }
+    }
+
     async loadInitialTerminalData(): Promise<void> {
         const startTs = Date.now();
         const zoneId = this.getZoneId();
@@ -577,7 +633,7 @@ export class TermWrap {
                     this.terminal.resize(fileTermSize.cols, fileTermSize.rows);
                     didResize = true;
                 }
-                this.doTerminalWrite(cacheData, ptyOffset);
+                await this.writeInitialTerminalData(cacheData, ptyOffset);
                 if (didResize) {
                     this.terminal.resize(curTermSize.cols, curTermSize.rows);
                 }
@@ -588,7 +644,7 @@ export class TermWrap {
             `terminal loaded cachefile:${cacheData?.byteLength ?? 0} main:${mainData?.byteLength ?? 0} bytes, ${Date.now() - startTs}ms`
         );
         if (mainFile != null) {
-            await this.doTerminalWrite(mainData, null);
+            await this.writeInitialTerminalData(mainData);
             // anchor to the server-reported size so held-data dedup lines up even if the
             // circular file trimmed past the cache's ptyoffset and the read came back shifted
             if (this.ptyOffset != mainFile.size) {
@@ -649,11 +705,24 @@ export class TermWrap {
     }
 
     runProcessIdleTimeout() {
-        setTimeout(() => {
-            window.requestIdleCallback(() => {
-                this.processAndCacheData();
-                this.runProcessIdleTimeout();
-            });
+        this.idleTimeoutId = setTimeout(() => {
+            this.idleTimeoutId = null;
+            if (this.disposed) {
+                return;
+            }
+            window.requestIdleCallback(
+                () => {
+                    if (this.disposed) {
+                        return;
+                    }
+                    this.processAndCacheData();
+                    if (Date.now() - this.lastUpdated >= DurableCatchUpPollMs) {
+                        this.requestDurableCatchUp("durable-idle-poll", DurableCatchUpPollMs);
+                    }
+                    this.runProcessIdleTimeout();
+                },
+                { timeout: DurableCatchUpIdleTimeoutMs }
+            );
         }, 5000);
     }
 
