@@ -184,8 +184,11 @@ func (jm *JobManager) connectToStreamHelper_withlock(mainServerConn *MainServerC
 	dataSender := &routedDataSender{
 		wshRpc: mainServerConn.WshRpc,
 		route:  streamMeta.ReaderRouteId,
+		msc:    mainServerConn,
+		sm:     jm.StreamManager,
 	}
-	serverSeq, err := jm.StreamManager.ClientConnected(
+	// Epoch is bound onto dataSender under StreamManager.lock inside ClientConnected.
+	serverSeq, _, err := jm.StreamManager.ClientConnected(
 		streamMeta.Id,
 		dataSender,
 		rwndSize,
@@ -201,11 +204,13 @@ func (jm *JobManager) connectToStreamHelper_withlock(mainServerConn *MainServerC
 func (jm *JobManager) disconnectFromStreamHelper(mainServerConn *MainServerConn) {
 	jm.lock.Lock()
 	defer jm.lock.Unlock()
-	if jm.connectedStreamClient == nil || jm.connectedStreamClient != mainServerConn {
-		return
+	if jm.connectedStreamClient != nil && jm.connectedStreamClient == mainServerConn {
+		jm.StreamManager.ClientDisconnected()
+		jm.connectedStreamClient = nil
 	}
-	jm.StreamManager.ClientDisconnected()
-	jm.connectedStreamClient = nil
+	if jm.attachedClient == mainServerConn {
+		jm.attachedClient = nil
+	}
 }
 
 func (jm *JobManager) SetAttachedClient(msc *MainServerConn) {
@@ -422,9 +427,13 @@ func handleJobDomainSocketClient(conn net.Conn) {
 	rpcCtx := wshrpc.RpcContext{}
 	wshRpc := wshutil.MakeWshRpcWithChannels(inputCh, outputCh, rpcCtx, serverImpl, "job-domain")
 	serverImpl.WshRpc = wshRpc
-	defer WshCmdJobManager.disconnectFromStreamHelper(serverImpl)
 
+	// Wait until both adapt loops finish so disconnectFromStreamHelper runs on
+	// real connection teardown, not immediately after Accept.
+	var wg sync.WaitGroup
+	wg.Add(2)
 	go func() {
+		defer wg.Done()
 		defer func() {
 			panichandler.PanicHandler("handleJobDomainSocketClient:AdaptOutputChToStream", recover())
 		}()
@@ -436,6 +445,7 @@ func handleJobDomainSocketClient(conn net.Conn) {
 	}()
 
 	go func() {
+		defer wg.Done()
 		defer func() {
 			panichandler.PanicHandler("handleJobDomainSocketClient:AdaptStreamToMsgCh", recover())
 		}()
@@ -443,5 +453,7 @@ func handleJobDomainSocketClient(conn net.Conn) {
 		wshutil.AdaptStreamToMsgCh(conn, inputCh, nil)
 	}()
 
+	wg.Wait()
+	WshCmdJobManager.disconnectFromStreamHelper(serverImpl)
 	_ = wshRpc
 }

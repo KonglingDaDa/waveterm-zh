@@ -222,6 +222,170 @@ func TestBrokerCancel(t *testing.T) {
 	}
 }
 
+func TestBrokerReleaseReaderWithoutCancel(t *testing.T) {
+	rpc := &mockRpcInterface{
+		dataChan: make(chan wshrpc.CommandStreamData, 1),
+		ackChan:  make(chan wshrpc.CommandStreamAckData, 1),
+	}
+	broker := NewBroker(rpc)
+	defer broker.Close()
+
+	reader, meta := broker.CreateStreamReader("reader", "writer", 1024)
+	reader.BeginDrain()
+	if err := reader.ReleaseWithoutCancel(); err != nil {
+		t.Fatalf("release drained reader: %v", err)
+	}
+
+	broker.lock.Lock()
+	_, readerExists := broker.readers[meta.Id]
+	broker.lock.Unlock()
+	if readerExists {
+		t.Fatal("released reader remained registered in broker")
+	}
+
+	// A packet may already be queued when graceful drain completes. It belongs
+	// to the retired stream and must be dropped rather than converted into the
+	// missing-reader Cancel that aborts the job transport.
+	broker.processRecvData(wshrpc.CommandStreamData{Id: meta.Id, Seq: 0})
+	broker.sendQueue.Close(false)
+	broker.sendQueue.Wait()
+	select {
+	case ack := <-rpc.ackChan:
+		t.Fatalf("late retired-stream packet unexpectedly sent ACK: %+v", ack)
+	default:
+	}
+}
+
+func TestBrokerFinRetiresReaderAndDropsLateData(t *testing.T) {
+	rpc := &mockRpcInterface{
+		dataChan: make(chan wshrpc.CommandStreamData, 1),
+		ackChan:  make(chan wshrpc.CommandStreamAckData, 2),
+	}
+	broker := NewBroker(rpc)
+	defer broker.Close()
+
+	_, meta := broker.CreateStreamReader("reader", "writer", 1024)
+	broker.processSendAck(wshrpc.CommandStreamAckData{Id: meta.Id, Fin: true})
+
+	select {
+	case ack := <-rpc.ackChan:
+		if !ack.Fin || ack.Cancel {
+			t.Fatalf("unexpected terminal ACK: %+v", ack)
+		}
+	default:
+		t.Fatal("Fin ACK was not sent to the writer")
+	}
+
+	broker.lock.Lock()
+	_, readerExists := broker.readers[meta.Id]
+	_, retiredExists := broker.retiredReaders[meta.Id]
+	broker.lock.Unlock()
+	if readerExists || !retiredExists {
+		t.Fatalf("Fin must retire reader: reader=%v retired=%v", readerExists, retiredExists)
+	}
+
+	broker.processRecvData(wshrpc.CommandStreamData{Id: meta.Id, Seq: 0})
+	broker.sendQueue.Close(false)
+	broker.sendQueue.Wait()
+	select {
+	case ack := <-rpc.ackChan:
+		t.Fatalf("late data after Fin unexpectedly sent ACK: %+v", ack)
+	default:
+	}
+}
+
+func TestBrokerPrunesExpiredRetiredReaderOnCreate(t *testing.T) {
+	rpc := &mockRpcInterface{
+		dataChan: make(chan wshrpc.CommandStreamData, 1),
+		ackChan:  make(chan wshrpc.CommandStreamAckData, 1),
+	}
+	broker := NewBroker(rpc)
+	defer broker.Close()
+
+	reader, oldMeta := broker.CreateStreamReader("reader", "writer", 1024)
+	reader.BeginDrain()
+	if err := reader.ReleaseWithoutCancel(); err != nil {
+		t.Fatalf("release drained reader: %v", err)
+	}
+	broker.lock.Lock()
+	broker.retiredReaders[oldMeta.Id] = time.Now().Add(-retiredReaderTTL - time.Second)
+	broker.lock.Unlock()
+
+	_, _ = broker.CreateStreamReader("reader", "writer", 1024)
+	broker.lock.Lock()
+	_, retiredExists := broker.retiredReaders[oldMeta.Id]
+	_, routeExists := broker.writerRoutes[oldMeta.Id]
+	broker.lock.Unlock()
+	if retiredExists || routeExists {
+		t.Fatalf("expired retired reader was not pruned: retired=%v writerRoute=%v", retiredExists, routeExists)
+	}
+}
+
+func TestBrokerExpireRetiredReaderDoesNotDeleteNewerRetirement(t *testing.T) {
+	rpc := &mockRpcInterface{
+		dataChan: make(chan wshrpc.CommandStreamData, 1),
+		ackChan:  make(chan wshrpc.CommandStreamAckData, 1),
+	}
+	broker := NewBroker(rpc)
+	defer broker.Close()
+
+	reader, meta := broker.CreateStreamReader("reader", "writer", 1024)
+	reader.BeginDrain()
+	if err := reader.ReleaseWithoutCancel(); err != nil {
+		t.Fatalf("release drained reader: %v", err)
+	}
+	broker.lock.Lock()
+	firstRetirement := broker.retiredReaders[meta.Id]
+	newerRetirement := firstRetirement.Add(time.Nanosecond)
+	broker.retiredReaders[meta.Id] = newerRetirement
+	broker.lock.Unlock()
+
+	broker.expireRetiredReader(meta.Id, firstRetirement)
+	broker.lock.Lock()
+	gotRetirement, retiredExists := broker.retiredReaders[meta.Id]
+	_, routeExists := broker.writerRoutes[meta.Id]
+	broker.lock.Unlock()
+	if !retiredExists || gotRetirement != newerRetirement || !routeExists {
+		t.Fatalf("stale expiry deleted newer retirement: retired=%v timestamp=%v route=%v", retiredExists, gotRetirement, routeExists)
+	}
+
+	broker.expireRetiredReader(meta.Id, newerRetirement)
+	broker.lock.Lock()
+	_, retiredExists = broker.retiredReaders[meta.Id]
+	_, routeExists = broker.writerRoutes[meta.Id]
+	broker.lock.Unlock()
+	if retiredExists || routeExists {
+		t.Fatalf("matching expiry did not clean retirement: retired=%v route=%v", retiredExists, routeExists)
+	}
+}
+
+func TestBrokerHardCloseAfterReleaseStillSendsCancel(t *testing.T) {
+	rpc := &mockRpcInterface{
+		dataChan: make(chan wshrpc.CommandStreamData, 1),
+		ackChan:  make(chan wshrpc.CommandStreamAckData, 1),
+	}
+	broker := NewBroker(rpc)
+	defer broker.Close()
+
+	reader, _ := broker.CreateStreamReader("reader", "writer", 1024)
+	reader.BeginDrain()
+	if err := reader.ReleaseWithoutCancel(); err != nil {
+		t.Fatalf("release drained reader: %v", err)
+	}
+	_ = reader.Close()
+	broker.sendQueue.Close(false)
+	broker.sendQueue.Wait()
+
+	select {
+	case ack := <-rpc.ackChan:
+		if !ack.Cancel {
+			t.Fatalf("hard Close sent non-Cancel ACK: %+v", ack)
+		}
+	default:
+		t.Fatal("hard Close after local release did not reach RPC transport")
+	}
+}
+
 func TestBrokerMultipleWrites(t *testing.T) {
 	broker1, broker2 := setupBrokerPair()
 

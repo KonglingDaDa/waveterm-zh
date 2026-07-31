@@ -25,29 +25,129 @@ type MainServerConn struct {
 	Conn              net.Conn
 	inputCh           chan baseds.RpcInputChType
 	closeOnce         sync.Once
+
+	// lifecycleMu protects boundEpoch/aborting/closed so a stale Abort from a
+	// previous connection epoch cannot close a MainServerConn that has already
+	// been rebound, and so ordinary Close cannot leave BindEpoch open.
+	// Lock order: lifecycle state → closeOnce body (never reverse).
+	lifecycleMu sync.Mutex
+	boundEpoch  int64
+	aborting    bool
+	closed      bool
+}
+
+// BindEpoch records the StreamManager connection epoch for this transport.
+// Fails if Abort has claimed this connection or Close has already run.
+func (msc *MainServerConn) BindEpoch(epoch int64) error {
+	msc.lifecycleMu.Lock()
+	defer msc.lifecycleMu.Unlock()
+	if msc.aborting || msc.closed {
+		return fmt.Errorf("MainServerConn is closed/aborting; cannot bind epoch %d", epoch)
+	}
+	msc.boundEpoch = epoch
+	return nil
+}
+
+// ClaimAbort attempts to claim the right to Abort this connection for epoch.
+// Returns true only once per connection lifecycle when epoch matches boundEpoch.
+func (msc *MainServerConn) ClaimAbort(epoch int64) bool {
+	msc.lifecycleMu.Lock()
+	defer msc.lifecycleMu.Unlock()
+	if msc.aborting || msc.closed || epoch == 0 || msc.boundEpoch != epoch {
+		return false
+	}
+	msc.aborting = true
+	return true
 }
 
 func (*MainServerConn) WshServerImpl() {}
 
 func (msc *MainServerConn) Close() {
+	// Mark closed under lifecycleMu first so concurrent BindEpoch fails before
+	// socket/channel teardown. closeOnce still serializes the actual close.
+	msc.lifecycleMu.Lock()
+	msc.closed = true
+	msc.lifecycleMu.Unlock()
+
 	msc.closeOnce.Do(func() {
-		msc.Conn.Close()
-		close(msc.inputCh)
+		if msc.Conn != nil {
+			_ = msc.Conn.Close()
+		}
+		// inputCh may already be closed by peer teardown (e.g. adapt loop exit).
+		// Never let a double-close panic kill JobManager.
+		if msc.inputCh != nil {
+			func() {
+				defer func() { _ = recover() }()
+				close(msc.inputCh)
+			}()
+		}
 	})
 }
 
 type routedDataSender struct {
 	wshRpc *wshutil.WshRpc
 	route  string
+	msc    *MainServerConn
+	// epoch is bound under StreamManager.ClientConnected lock before the
+	// sender is published to the send loop (see bindConnectionEpoch).
+	epoch atomic.Int64
+	sm    *StreamManager
+	// abortOnce ensures at most one Close per sender instance.
+	abortOnce sync.Once
 }
 
-func (rds *routedDataSender) SendData(dataPk wshrpc.CommandStreamData) {
-	// log.Printf("SendData: sending seq=%d, len=%d, eof=%t, error=%s, route=%s",
-	// 	dataPk.Seq, len(dataPk.Data64), dataPk.Eof, dataPk.Error, rds.route)
-	err := wshclient.StreamDataCommand(rds.wshRpc, dataPk, &wshrpc.RpcOpts{NoResponse: true, Route: rds.route})
+// bindConnectionEpoch is invoked under StreamManager.lock while publishing
+// this sender so the epoch is immutable for the lifetime of the connection.
+// It claims the MSC lifecycle first; on failure ClientConnected must not
+// publish dataSender/connected.
+func (rds *routedDataSender) bindConnectionEpoch(epoch int64) error {
+	if rds.msc != nil {
+		if err := rds.msc.BindEpoch(epoch); err != nil {
+			return err
+		}
+	}
+	rds.epoch.Store(epoch)
+	return nil
+}
+
+func (rds *routedDataSender) SendData(dataPk wshrpc.CommandStreamData) (err error) {
+	// Named return + recover: WshRpc.SendCommand can panic when OutputCh is
+	// closed (runServer close races NoResponse send: SendComplexRequest
+	// recovers to (nil,nil) then SendCommand finalizes a nil handler).
+	// A panic here would kill the entire JobManager process.
+	// Kept as defense in depth alongside StreamManager.sendDataSafely.
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("streamdata send panic: %v", r)
+			log.Printf("SendData: recovered panic sending stream data: %v\n", r)
+		}
+	}()
+	err = wshclient.StreamDataCommand(rds.wshRpc, dataPk, &wshrpc.RpcOpts{NoResponse: true, Route: rds.route})
 	if err != nil {
 		log.Printf("SendData: error sending stream data: %v\n", err)
+		return err
 	}
+	return nil
+}
+
+// Abort closes the current main-server client transport only. It does not
+// terminate the JobManager or PTY; the client is expected to reconnect and
+// resume from the durable circular buffer.
+// Epoch ownership is claimed on the MainServerConn (ClaimAbort); a stale
+// epoch from a previous bind must not close a rebound connection.
+func (rds *routedDataSender) Abort(err error) {
+	if rds.msc == nil {
+		return
+	}
+	epoch := rds.epoch.Load()
+	if !rds.msc.ClaimAbort(epoch) {
+		log.Printf("durable stream transport aborted: ignoring stale Abort epoch=%d err=%v\n", epoch, err)
+		return
+	}
+	rds.abortOnce.Do(func() {
+		log.Printf("durable stream transport aborted: closing MainServerConn epoch=%d (err=%v)\n", epoch, err)
+		rds.msc.Close()
+	})
 }
 
 func (msc *MainServerConn) authenticateSelfToServer(jobAuthToken string) error {
