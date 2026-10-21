@@ -70,7 +70,6 @@ npm run test -- --run frontend/app/i18n
 npm run build:dev
 
 git push --force-with-lease origin main
-git push --force-with-lease origin main:zh-cn
 ```
 
 ## 执行清单（2026-06-28 整理记录）
@@ -85,19 +84,12 @@ git push --force-with-lease origin main:zh-cn
 - [x] 8. Commit 6：CI workflow（`git log upstream/main..HEAD` 第 1 条）
 - [x] 9. 验证 commit 数量 = 6；非文档文件与备份树一致
 - [x] 10. i18n 测试 38/38 通过；build:dev 成功
-- [x] 11. force-with-lease 推送到 `origin/main` 与 `origin/zh-cn`
+- [x] 11. force-with-lease 推送到 `origin/main`
 
-## 当前六层 Commit（整理后）
+## 当前六层骨架（rebase 到 upstream/main 之后）
 
-| # | Hash | Message |
-|---|------|---------|
-| 1 | `650219b8` | feat(i18n): add locale infrastructure and zh-CN catalog |
-| 2 | `878efd21` | feat(i18n): localize electron main process |
-| 3 | `46d0d285` | feat(i18n): localize frontend app shell and core views |
-| 4 | `7c54963a` | feat(i18n): localize AI, onboarding, and system presets |
-| 5 | （见 `git log`） | docs: fork attribution, NOTICE, and maintenance guide |
-| 6 | （见 `git log`） | chore(ci): add zh-CN release workflow |
+以 `git log --reverse --oneline upstream/main..HEAD` 为准。前 6 条应是上面的主题 commit；其后可以有终端修复、CI、默认语言等独立提交，跟进官方时一起 rebase，不必压回 6 个。
 
 ## 日常维护约定
 
-新增汉化改动时，按主题追加**新 commit**（保持 message 前缀与层一致），不要混入无关主题。下次跟官方版本仍使用 `git rebase upstream/main`。
+新增汉化改动时，按主题追加**新 commit**（保持 message 前缀与层一致），不要混入无关主题。只推 `origin/main`。下次跟官方版本仍使用 `git rebase upstream/main`。

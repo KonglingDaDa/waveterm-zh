@@ -2,7 +2,7 @@
 
 ## A. 项目在做什么
 
-这是 [wavetermdev/waveterm](https://github.com/wavetermdev/waveterm) 的**简体中文本地化维护仓库**（发布于 `Bianshumeng/waveterm-zh`）。
+这是 [wavetermdev/waveterm](https://github.com/wavetermdev/waveterm) 的**简体中文本地化维护仓库**（发布于 `KonglingDaDa/waveterm-zh`）。
 
 目标：
 
@@ -12,12 +12,12 @@
 ## B. Remote 约定
 
 ```text
-upstream: https://github.com/wavetermdev/waveterm.git   # 官方上游，只 fetch，不直接改
-origin:   https://github.com/Bianshumeng/waveterm-zh.git # 本仓库公开发布
+upstream: https://github.com/wavetermdev/waveterm.git     # 官方上游，只 fetch，不直接改
+origin:   https://github.com/KonglingDaDa/waveterm-zh.git # 本仓库公开发布
 ```
 
 - 官方代码只从 `upstream` 获取。
-- 汉化提交推送到 `origin` 的维护分支（`main` / `zh-cn`）。
+- 汉化提交推送到 `origin` 的 `main`。
 
 ## C. 分支与 Commit 约定
 
@@ -25,11 +25,10 @@ origin:   https://github.com/Bianshumeng/waveterm-zh.git # 本仓库公开发布
 |------|------|
 | `upstream/main` | 官方主线，仅作 rebase 基线 |
 | `main` | 当前汉化版本（官方基线 + 汉化 commit） |
-| `zh-cn` | 可选，显式标记汉化维护分支 |
 
 规则：
 
-- 汉化内容以 **commit** 形式保存在维护分支上，不要长期留在未提交工作区。
+- 汉化内容以 **commit** 形式保存在 `main` 上，不要长期留在未提交工作区。
 - 每轮改动用清晰 commit 保留，便于跟进官方版本。
 - 推荐 commit message 前缀：
   - `feat(i18n): ...`
@@ -37,9 +36,9 @@ origin:   https://github.com/Bianshumeng/waveterm-zh.git # 本仓库公开发布
   - `docs: ...`
   - `chore(repo): ...`
 
-### C.1 二开层 Commit 主题结构（6 层）
+### C.1 二开层 Commit 主题结构（6 层骨架）
 
-`main` 相对 `upstream/main` 的二开历史应维持 **6 个主题 commit**（详见 [docs/commit-structure.md](docs/commit-structure.md)）：
+`main` 相对 `upstream/main` 的**汉化骨架**为 **6 个主题 commit**（详见 [docs/commit-structure.md](docs/commit-structure.md)）：
 
 | 顺序 | Message 前缀 | 范围 |
 |------|----------------|------|
@@ -50,7 +49,7 @@ origin:   https://github.com/Bianshumeng/waveterm-zh.git # 本仓库公开发布
 | 5 | `docs: fork attribution, NOTICE, and maintenance guide` | `README`、`NOTICE`、`AGENTS.md` |
 | 6 | `chore(ci): add zh-CN release workflow` | `.github/workflows/release-zh.yml` |
 
-整理或跟进官方版本后，用 `git rev-list --count upstream/main..HEAD` 确认为 **6**；若历史被拆散，按 `docs/commit-structure.md` 的方案 B 重新整理。
+这 6 层之后可以追加独立 commit（终端修复、CI、默认语言等）。跟进官方时把整段二开历史一起 rebase，**不必压回 6 个**。只有汉化骨架被拆散时，才按 `docs/commit-structure.md` 的方案 B 重新整理这 6 层。
 
 ## D. 跟进官方更新的标准流程
 
@@ -62,7 +61,7 @@ git status
 git fetch upstream
 
 # 3. 切到汉化维护分支
-git switch main   # 或 zh-cn
+git switch main
 
 # 4. 把汉化提交 rebase 到新的官方 main
 git rebase upstream/main
@@ -77,8 +76,6 @@ git rebase upstream/main
 # 6. 验证通过后推送到 origin
 # rebase 改写了历史，需 force-with-lease（见 J. 分支保护）
 git push --force-with-lease origin main
-# 同步 zh-cn（无 rebase 时可用普通 push；与 main 同步时同上）
-git push --force-with-lease origin main:zh-cn
 ```
 
 **注意：** 不要把 `upstream/main` 直接改成汉化内容；汉化 commit 应 rebase 到新官方基线上。
@@ -87,7 +84,6 @@ git push --force-with-lease origin main:zh-cn
 
 ```bash
 git push origin main
-git push origin main:zh-cn
 ```
 
 ## E. Git rerere
@@ -136,7 +132,8 @@ task generate
 
 不要提交：
 
-- `.omx/`
+- `.omx/`、`.codegraph/`、`.gitnexus/`
+- 本机 Agent 注入（`AGENTS.md` / `CLAUDE.md` 末尾的 GitNexus 或 CodeGraph 段、未跟踪的 `Agents.md`）
 - 本地日志、`*.log`
 - 构建产物（`dist/`、`dist-dev/`、`out/`、`bin/`、`make/` 等）
 - `node_modules/`
@@ -147,19 +144,19 @@ task generate
 
 ### 策略
 
-- **仅手动发布**：普通 commit 推送到 `main` / `zh-cn` **不会**触发构建。
+- **仅手动发布**：普通 commit 推送到 `main` **不会**触发构建。
 - 发布由 GitHub Actions workflow **手动触发**（`workflow_dispatch`），在汉化改动积累并验证后再打包。
 - 跨平台产物（macOS / Windows / Linux）依赖 CI 矩阵；本地环境通常无法一次打全平台包。
 
 ### 发布流程
 
-1. 确保 `main`（及 `zh-cn`）已包含待发布的汉化 commit，且验证通过（见 **F. 验证要求**）。
+1. 确保 `main` 已包含待发布的汉化 commit，且验证通过（见 **F. 验证要求**）。
 2. 打开 GitHub → **Actions** → **Release zh-CN Build** → **Run workflow**。
 3. 填写参数：
-   - **tag**：版本标签，格式 `v{上游版本}-zh.{序号}`，例如 `v0.14.5-zh.2`（序号在同类版本上递增）。
+   - **tag**：版本标签，格式 `v{上游版本}-zh.{序号}`，例如 `v0.14.5-zh.8`（序号在同类版本上递增）。
    - **publish**：`true` 直接发布；`false` 先创建 **Draft** Release，检查产物后再手动发布。
 4. Workflow 从当前默认分支（`main`）检出代码，在 4 个 runner 上并行构建并上传至 GitHub Releases。
-5. 用户在 [Releases](https://github.com/Bianshumeng/waveterm-zh/releases) 页面下载对应平台安装包。
+5. 用户在 [Releases](https://github.com/KonglingDaDa/waveterm-zh/releases) 页面下载对应平台安装包。
 
 Workflow 文件：`.github/workflows/release-zh.yml`。
 
@@ -189,8 +186,8 @@ CI **不构建 Snap**：Snapcraft 9 与 electron-builder 不兼容（`snap` 命�
 
 | 项目 | 状态 |
 |------|------|
-| 远程 tag `v0.14.5-zh.1` | 存在；由旧 workflow（tag 自动触发）启动过一次构建，**不代表当前推荐发布方式** |
-| 正式 Release 产物 | 以 [Releases](https://github.com/Bianshumeng/waveterm-zh/releases) 页面为准；后续请用手动 workflow 发布 `v0.14.5-zh.2` 及以后版本 |
+| 最新正式 Release | `v0.14.5-zh.7`（2026-07-31）；下一序号为 `v0.14.5-zh.8` |
+| 正式 Release 产物 | 以 [Releases](https://github.com/KonglingDaDa/waveterm-zh/releases) 页面为准 |
 | 当前 `package.json` 版本 | `0.14.5`（与上游基线一致；汉化版序号体现在 tag 的 `-zh.{n}` 后缀） |
 
 ## J. 仓库现状与 GitHub 设置
@@ -199,16 +196,17 @@ CI **不构建 Snap**：Snapcraft 9 与 electron-builder 不兼容（`snap` 命�
 
 - **单人维护**，规则从宽：不强制 PR、不强制 CI 绿灯、owner 可绕过限制。
 - 目标：防误删主分支，同时保留 rebase 后 force push 能力。
+- 只维护 `main`。旧的 `zh-cn` 别名分支已删除，不要再创建或同步。
 
 ### 分支保护（Branch protection）
 
-已保护分支：`main`、`zh-cn`（规则相同）。
+已保护分支：`main`。
 
-设置入口：[Settings → Branches](https://github.com/Bianshumeng/waveterm-zh/settings/branches)
+设置入口：[Settings → Branches](https://github.com/KonglingDaDa/waveterm-zh/settings/branches)
 
 | 选项 | 当前值 | 对你意味着什么 |
 |------|--------|----------------|
-| **Allow deletions**（允许删除分支） | 关闭 | 不能在 GitHub 上误删 `main` / `zh-cn` |
+| **Allow deletions**（允许删除分支） | 关闭 | 不能在 GitHub 上误删 `main` |
 | **Allow force pushes**（允许 force push） | 开启 | rebase 后可用 `--force-with-lease` 推送，**不会被这条规则挡住** |
 | **Require a pull request before merging** | 关闭 | 可直接 push 到 `main`，**不必开 PR** |
 | **Require status checks to pass** | 关闭 | push 不依赖 CI 绿灯，**不会被未跑的 Actions 挡住** |
@@ -225,7 +223,6 @@ CI **不构建 Snap**：Snapcraft 9 与 electron-builder 不兼容（`snap` 命�
 git add <files>
 git commit -m "feat(i18n): ..."
 git push origin main
-git push origin main:zh-cn    # 保持两分支同步
 ```
 
 **跟进官方 rebase 之后：**
@@ -234,7 +231,6 @@ git push origin main:zh-cn    # 保持两分支同步
 git rebase upstream/main
 # ... 解决冲突、验证 ...
 git push --force-with-lease origin main
-git push --force-with-lease origin main:zh-cn
 ```
 
 优先用 `--force-with-lease` 而不是 `--force`：若远程有你不知道的新提交，会拒绝推送，避免覆盖他人改动（将来若多人协作更安全）。
@@ -243,7 +239,7 @@ git push --force-with-lease origin main:zh-cn
 
 | 操作 | 结果 |
 |------|------|
-| 在 GitHub 删除 `main` / `zh-cn` | 被拒绝（已禁止删除） |
+| 在 GitHub 删除 `main` | 被拒绝（已禁止删除） |
 | 普通 `git push` 写汉化 commit | 允许 |
 | rebase 后 `git push --force-with-lease` | 允许 |
 | 未跑 CI 就 push | 允许（未要求 status checks） |
@@ -253,7 +249,7 @@ git push --force-with-lease origin main:zh-cn
 
 | 事件 | 是否触发 |
 |------|----------|
-| push 到 `main` / `zh-cn` | 不触发 Release 打包 |
+| push 到 `main` | 不触发 Release 打包 |
 | push tag `v*-zh*` | **已不再**自动触发（已改为仅手动 workflow） |
 | 手动 Run **Release zh-CN Build** | 触发跨平台打包 |
 
@@ -262,7 +258,7 @@ git push --force-with-lease origin main:zh-cn
 - 修复 workflow 并 push 后，需在 Actions **重新手动 Run workflow**（不能用旧 run 续跑）。
 - `create-release` 会在**至少有一个平台构建成功**时执行，并上传已成功的产物（某平台失败不阻断其余平台发布）。
 - 产物从各 runner 子目录汇总到 `release-files/` 再上传（避免 `make/*.zip` 匹配不到嵌套路径）。
-- 建议使用新 tag（如 `v0.14.5-zh.2`）；若复用已存在 tag，需先在 GitHub 删除旧 Release/tag。
+- 建议使用新 tag（如 `v0.14.5-zh.8`）；若复用已存在 tag，需先在 GitHub 删除旧 Release/tag。
 
 ### 修改分支保护时请注意
 
@@ -271,49 +267,3 @@ git push --force-with-lease origin main:zh-cn
 - 关闭 **Allow force pushes** → rebase 后无法正常推送到 `origin`
 - 开启 **Require status checks** → 需先配置「每次 push 必跑」的轻量 CI，否则会 push 失败
 - 开启 **Require pull request** → 日常汉化不能直接 push，需改走 PR 流程
-
----
-
-<!-- gitnexus:start -->
-# GitNexus — Code Intelligence
-
-This project is indexed by GitNexus as **waveterm** (26289 symbols, 59903 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
-
-> Index stale? Run `node .gitnexus/run.cjs analyze` from the project root — it auto-selects an available runner. No `.gitnexus/run.cjs` yet? `npx gitnexus analyze` (npm 11 crash → `npm i -g gitnexus`; #1939).
-
-## Always Do
-
-- **MUST run impact analysis before editing any symbol.** Before modifying a function, class, or method, run `gitnexus_impact({target: "symbolName", direction: "upstream"})` and report the blast radius (direct callers, affected processes, risk level) to the user.
-- **MUST run `gitnexus_detect_changes()` before committing** to verify your changes only affect expected symbols and execution flows. For regression review, compare against the default branch: `gitnexus_detect_changes({scope: "compare", base_ref: "main"})`.
-- **MUST warn the user** if impact analysis returns HIGH or CRITICAL risk before proceeding with edits.
-- When exploring unfamiliar code, use `gitnexus_query({query: "concept"})` to find execution flows instead of grepping. It returns process-grouped results ranked by relevance.
-- When you need full context on a specific symbol — callers, callees, which execution flows it participates in — use `gitnexus_context({name: "symbolName"})`.
-
-## Never Do
-
-- NEVER edit a function, class, or method without first running `gitnexus_impact` on it.
-- NEVER ignore HIGH or CRITICAL risk warnings from impact analysis.
-- NEVER rename symbols with find-and-replace — use `gitnexus_rename` which understands the call graph.
-- NEVER commit changes without running `gitnexus_detect_changes()` to check affected scope.
-
-## Resources
-
-| Resource | Use for |
-|----------|---------|
-| `gitnexus://repo/waveterm/context` | Codebase overview, check index freshness |
-| `gitnexus://repo/waveterm/clusters` | All functional areas |
-| `gitnexus://repo/waveterm/processes` | All execution flows |
-| `gitnexus://repo/waveterm/process/{name}` | Step-by-step execution trace |
-
-## CLI
-
-| Task | Read this skill file |
-|------|---------------------|
-| Understand architecture / "How does X work?" | `.claude/skills/gitnexus/gitnexus-exploring/SKILL.md` |
-| Blast radius / "What breaks if I change X?" | `.claude/skills/gitnexus/gitnexus-impact-analysis/SKILL.md` |
-| Trace bugs / "Why is X failing?" | `.claude/skills/gitnexus/gitnexus-debugging/SKILL.md` |
-| Rename / extract / split / refactor | `.claude/skills/gitnexus/gitnexus-refactoring/SKILL.md` |
-| Tools, resources, schema reference | `.claude/skills/gitnexus/gitnexus-guide/SKILL.md` |
-| Index, status, clean, wiki CLI commands | `.claude/skills/gitnexus/gitnexus-cli/SKILL.md` |
-
-<!-- gitnexus:end -->
